@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="L1 图片编辑器 - 纯本地浏览器图片编辑器：AI 抠图、AI 消除水印/物体、比例裁剪、多格式导出。单文件零依赖，双击即用，断网可用，图片永不上传。Free local image editor with AI background removal and object inpainting, works offline.">
+<meta name="keywords" content="图片编辑器, AI抠图, 去水印, 消除, 背景移除, 本地图片处理, image editor, background removal, object removal, inpainting, offline, onnxruntime-web">
+<meta name="theme-color" content="#1fa75f">
+<meta property="og:title" content="L1 图片编辑器 — 纯本地 AI 抠图消除工具">
+<meta property="og:description" content="单文件浏览器图片编辑器：AI 抠图 / AI 消除 / 裁剪 / 多格式导出。双击即用、断网可用、图片永不上传。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://gooooddayy.github.io/L1-Photo-Editor/">
+<title>L1 图片编辑器</title>
+<style>
+:root{
+  --bg:#f2f5f1; --panel:rgba(255,255,255,.72); --panel2:rgba(243,247,243,.85); --line:rgba(28,58,38,.12);
+  --txt:#1d2620; --sub:#68786c; --acc:#1fa75f; --acc2:#35c26e; --warn:#d98a00; --err:#d84040;
+  --r:10px; --glass:blur(14px) saturate(1.35);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:linear-gradient(135deg,#f6f9f4 0%,#e7efe8 40%,#f3f6f1 70%,#e9f1ea 100%) fixed;
+  color:var(--txt);
+  font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  display:flex; flex-direction:column; overflow:hidden;
+  animation:pageIn .35s ease;
+  -webkit-tap-highlight-color:transparent; /* 仅触屏有视觉差异 */
+  touch-action:manipulation; /* 触屏双击不缩放页面；桌面无感 */
+}
+@keyframes pageIn{from{opacity:0}to{opacity:1}}
+
+header{
+  display:flex; align-items:center; gap:12px;
+  padding:10px 16px; border-bottom:1px solid var(--line);
+  background:var(--panel); backdrop-filter:var(--glass); -webkit-backdrop-filter:var(--glass);
+  flex:none;
+}
+/* 异形屏（刘海/挖孔/瀑布屏）沉浸式避让：桌面 env() 全为 0，布局零变化 */
+@supports (padding: max(0px)) {
+  header{
+    padding-top:max(10px, env(safe-area-inset-top, 0px));
+    padding-left:max(16px, env(safe-area-inset-left, 0px));
+    padding-right:max(16px, env(safe-area-inset-right, 0px));
+  }
+  main{padding-bottom:max(18px, env(safe-area-inset-bottom, 0px))}
+}
+header h1{font-size:15px; font-weight:600; letter-spacing:.5px}
+header .fileinfo{font-size:12px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1}
+
+.toolbar{
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:8px 12px; border-bottom:1px solid var(--line);
+  background:var(--panel); backdrop-filter:var(--glass); -webkit-backdrop-filter:var(--glass);
+  flex:none;
+}
+.btn{
+  border:1px solid var(--line); background:rgba(255,255,255,.55); color:var(--txt);
+  padding:7px 13px; border-radius:var(--r); font-size:13px; cursor:pointer;
+  transition:background .15s, transform .08s, border-color .15s;
+  user-select:none; white-space:nowrap;
+}
+.btn:hover{background:rgba(255,255,255,.9); border-color:#a9c4b0}
+.btn:active{transform:scale(.95)}
+.btn.acc{background:var(--acc); border-color:var(--acc); color:#fff}
+.btn.acc:hover{background:#23b96b}
+.btn.ok{background:var(--acc2); border-color:var(--acc2); color:#fff}
+.btn.ok:hover{background:#4ad07d}
+.btn.mode-on{background:var(--acc); border-color:var(--acc); color:#fff; box-shadow:0 0 0 3px rgba(31,167,95,.2)}
+.btn svg{width:15px; height:15px; vertical-align:-2.5px; margin-right:5px}
+.vline{width:1px; height:22px; background:var(--line); margin:0 4px}
+
+.ctxpanel.show{display:flex; animation:slideIn .2s ease}
+.chip{
+  border:1px solid var(--line); background:var(--panel2); color:var(--txt);
+  padding:5px 11px; border-radius:20px; font-size:12px; cursor:pointer;
+  transition:all .15s;
+}
+.chip:hover{border-color:var(--acc)}
+.chip.on{background:var(--acc); border-color:var(--acc); color:#fff}
+.lbl{font-size:12px; color:var(--sub)}
+input[type=range]{accent-color:var(--acc); width:110px}
+input[type=text],input[type=number]{
+  background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+  border-radius:8px; padding:6px 10px; font-size:13px; outline:none;
+}
+input[type=text]:focus,input[type=number]:focus{border-color:var(--acc)}
+input[type=color]{width:34px; height:30px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); cursor:pointer; padding:2px}
+select{background:var(--panel2); border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:6px 8px; font-size:13px; outline:none}
+
+main{
+  flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; padding:18px
+}
+.ctxpanel{
+  display:none; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:8px 14px; border-bottom:1px solid var(--line); flex:none;
+  background:var(--panel); backdrop-filter:var(--glass); -webkit-backdrop-filter:var(--glass);
+}
+.ctxpanel.show{display:flex; animation:slideIn .2s ease}
+@keyframes slideIn{from{opacity:0; transform:translateY(-4px)}to{opacity:1; transform:none}}
+#dropzone{
+  position:absolute; inset:0; display:flex; flex-direction:column; gap:14px;
+  align-items:center; justify-content:center; color:var(--sub); cursor:pointer;
+  transition:background .2s; text-align:center;
+}
+#dropzone:hover{background:rgba(31,167,95,.05)}
+#dropzone .big{font-size:16px; color:var(--txt)}
+#dropzone .icon{font-size:44px; opacity:.6}
+#dropzone.drag{background:rgba(31,167,95,.08); outline:2px dashed var(--acc); outline-offset:-14px}
+#stage{display:none; max-width:100%; max-height:100%; box-shadow:0 6px 30px rgba(0,0,0,.14); border-radius:6px;
+  touch-action:none; cursor:default; animation:cvIn .3s ease}
+@keyframes cvIn{from{opacity:0; transform:scale(.97)}to{opacity:1; transform:none}}
+#cv{display:block; max-width:100%; max-height:100%; border-radius:6px}
+
+#toast{
+  position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--panel); backdrop-filter:var(--glass); -webkit-backdrop-filter:var(--glass);
+  border:1px solid var(--line); color:var(--txt);
+  padding:10px 18px; border-radius:10px; font-size:13px; opacity:0;
+  pointer-events:none; transition:all .25s; z-index:60; max-width:80vw;
+  box-shadow:0 4px 16px rgba(0,0,0,.08);
+}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+#toast.err{border-color:#ffb4b4; color:#b23030}
+#toast.ok{border-color:var(--acc2); color:#136c3d}
+
+#aiBar{
+  position:fixed; bottom:70px; left:50%; transform:translateX(-50%);
+  display:none; align-items:center; gap:10px; z-index:55;
+  background:var(--panel); backdrop-filter:var(--glass); -webkit-backdrop-filter:var(--glass);
+  border:1px solid var(--line); border-radius:10px;
+  padding:9px 14px; font-size:12px; min-width:260px;
+  box-shadow:0 4px 16px rgba(0,0,0,.08);
+}
+#aiFillBox{flex:1; height:6px; background:#e2ebe2; border-radius:3px; overflow:hidden}
+#aiFill{height:100%; width:0; background:var(--acc); border-radius:3px; transition:width .2s}
+#aiPct{min-width:34px; text-align:right; color:var(--sub)}
+
+.modal-mask{
+  position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;
+  display:none; align-items:center; justify-content:center; backdrop-filter:blur(2px);
+}
+.modal-mask.show{display:flex; animation:pageIn .18s ease}
+.modal{
+  background:var(--panel); backdrop-filter:var(--glass); -webkit-backdrop-filter:var(--glass);
+  border:1px solid var(--line); border-radius:14px;
+  padding:20px 22px; width:min(430px,92vw); animation:slideIn .2s ease;
+  box-shadow:0 12px 40px rgba(20,50,30,.18);
+}
+.modal h2{font-size:15px; margin-bottom:14px}
+.modal .row{display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap}
+.modal .row .lbl{min-width:56px}
+.modal hr{border:none; border-top:1px solid var(--line); margin:14px 0}
+.modal .foot{display:flex; justify-content:flex-end; gap:8px; margin-top:16px}
+.outinfo{font-size:12px; color:var(--sub); margin-top:4px}
+.spin{
+  display:inline-block; width:14px; height:14px; border:2px solid #fff5;
+  border-top-color:#fff; border-radius:50%; animation:sp .7s linear infinite; vertical-align:-2px;
+}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ==== 以下仅窄屏/触屏生效，桌面端布局完全不受影响 ==== */
+@media (pointer: coarse){
+  .btn{padding:9px 13px} /* 触屏加大点击热区，防误触 */
+  .chip{padding:7px 13px}
+}
+@media (max-width: 560px){
+  header h1{font-size:14px}
+  .toolbar{padding:6px 8px; gap:5px}
+  .btn{padding:7px 10px; font-size:12px}
+  .btn svg{width:14px; height:14px; margin-right:3px}
+  .ctxpanel{padding:8px 10px; gap:8px}
+  .ctxpanel .lbl{font-size:11px}
+  .modal{padding:16px 14px; max-height:86vh; overflow:auto} /* 小屏弹窗内部滚动，不裁剪 */
+  .modal .row .lbl{min-width:auto}
+}
+@media (max-width: 380px){ /* 小屏 5 英寸以下：进一步压缩间距防换行溢出 */
+  .btn{padding:6px 8px; font-size:11px}
+  .btn svg{width:13px; height:13px; margin-right:2px}
+  .toolbar{gap:4px; padding:5px 6px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px;color:var(--acc)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L7 20"/></svg>L1 图片编辑器</h1>
+  <div class="fileinfo" id="fileinfo">未打开文件</div>
+</header>
+
+<div class="toolbar">
+  <button class="btn" id="btnOpen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>导入图片</button>
+  <button class="btn" id="btnUndo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>撤销</button>
+  <button class="btn" id="btnReset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v6h6"/><path d="M3 9a9 9 0 1 1-2.1 5.5"/><path d="M12 8v4l3 2"/></svg>还原原图</button>
+  <div class="vline"></div>
+  <button class="btn" id="btnRotate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v6h6"/><path d="M3.5 13a8.5 8.5 0 1 0 2.2-9.2L3 7"/></svg>逆时针90°</button>
+  <button class="btn" id="btnMirror"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20" stroke-dasharray="3 3"/><path d="M8 6 3 12l5 6V6z"/><path d="M16 6l5 6-5 6V6z"/></svg>镜像</button>
+  <div class="vline"></div>
+  <button class="btn" id="btnCrop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M2 6h14a2 2 0 0 1 2 2v14"/></svg>裁剪</button>
+  <button class="btn" id="btnMosaic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>马赛克</button>
+  <button class="btn" id="btnText"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg>文字</button>
+  <div class="vline"></div>
+  <button class="btn" id="btnRemoveBg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9"/><path d="M14.5 14.5 20 20"/><path d="M8.1 8.1 12 12"/></svg>抠图</button>
+  <button class="btn" id="btnErase"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3a2.4 2.4 0 0 1 0-3.4l9.6-9.6a2.4 2.4 0 0 1 3.4 0l5.6 5.6a2.4 2.4 0 0 1 0 3.4L14 20a2 2 0 0 1-1.7 1H7z"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>移除</button>
+  <div class="vline"></div>
+  <button class="btn acc" id="btnExport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>导出</button>
+  <input type="file" id="fileInput" accept="image/*" hidden>
+</div>
+
+<!-- 裁剪面板 -->
+<div class="ctxpanel" id="panelCrop">
+<span class="lbl">比例：</span>
+<span id="ratioChips"></span>
+<div class="vline"></div>
+<button class="btn ok" id="btnCropApply">✓ 应用裁剪</button>
+<button class="btn" id="btnCropCancel">✕ 取消</button>
+<span class="lbl" id="cropInfo"></span>
+</div>
+<!-- 马赛克面板 -->
+<div class="ctxpanel" id="panelMosaic">
+<span class="lbl">笔刷大小：</span>
+<input type="range" id="brushRange" min="10" max="200" value="48">
+<span class="lbl" id="brushVal">48px</span>
+<span class="lbl">｜在图片上按住涂抹，松开即完成一块，可反复涂抹</span>
+</div>
+<!-- 移除面板 -->
+<div class="ctxpanel" id="panelRemove">
+<span class="lbl">笔刷大小：</span>
+<input type="range" id="maskRange" min="10" max="200" value="40">
+<span class="lbl" id="maskVal">40px</span>
+<button class="btn ok" id="btnEraseGo">✓ 开始移除</button>
+<button class="btn" id="btnEraseClear">🧹 清空涂抹</button>
+<button class="btn" id="btnEraseCancel">✕ 取消</button>
+<span class="lbl">｜涂抹要移除的物体，首次使用自动下载模型（约28MB）</span>
+</div>
+<!-- 文字面板 -->
+<div class="ctxpanel" id="panelText">
+<input type="text" id="txtInput" placeholder="输入文字内容" style="width:150px">
+<span class="lbl">大小</span><input type="range" id="txtSize" min="12" max="800" value="60">
+<span class="lbl" id="txtSizeVal">60px</span>
+<input type="color" id="txtColor" value="#ff0000">
+<label class="lbl" style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="txtBold" checked style="accent-color:var(--acc)">加粗</label>
+<button class="btn" id="btnTextAdd">＋ 添加</button>
+<button class="btn" id="btnTextDel">🗑 删除所选</button>
+<button class="btn ok" id="btnTextMerge">✓ 合并到图片</button>
+</div>
+
+<main>
+  <div id="dropzone">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px;opacity:.55"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L7 20"/></svg>
+    <div class="big">点击选择图片，或拖拽 / 粘贴 (Ctrl+V) 到这里</div>
+    <div>支持 jpg / jpeg / png / webp 等常见格式 · 大小不限 · 纯本地处理，不上传</div>
+  </div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+</main>
+
+<!-- 导出弹窗 -->
+<div class="modal-mask" id="exportMask">
+  <div class="modal">
+    <h2>导出图片</h2>
+    <div class="row">
+      <span class="lbl">尺寸</span>
+      <select id="expSize" style="flex:1"></select>
+    </div>
+    <div class="row">
+      <span class="lbl">宽 × 高</span>
+      <input type="number" id="expW" min="16" max="20000" style="width:82px"> ×
+      <input type="number" id="expH" min="16" max="20000" style="width:82px">
+      <label class="lbl" style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="expLock" checked style="accent-color:var(--acc)">锁定比例</label>
+    </div>
+    <div class="row">
+      <span class="lbl">格式</span>
+      <select id="expFmt"></select>
+      <span class="lbl" id="fmtNote"></span>
+    </div>
+    <div class="row" id="qRow">
+      <span class="lbl">质量</span>
+      <input type="range" id="expQ" min="30" max="100" value="92">
+      <span class="lbl" id="expQVal">92%</span>
+      <span class="lbl">可升可降</span>
+    </div>
+    <hr>
+    <div class="row">
+      <span class="lbl">大小不超过</span>
+      <input type="number" id="expLimit" min="0" step="0.5" placeholder="不限" style="width:84px"> MB
+    </div>
+    <div class="outinfo" id="expInfo">…</div>
+    <div class="foot">
+      <button class="btn" id="btnExpCancel">取消</button>
+      <button class="btn acc" id="btnExpDo">导出并下载</button>
+    </div>
+  </div>
+</div>
+
+<div id="aiBar"><span id="aiText">…</span><div id="aiFillBox"><div id="aiFill"></div></div><span id="aiPct"></span></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ================= 基础 ================= */
+const $ = s => document.querySelector(s);
+const cv = $("#cv"), vctx = cv.getContext("2d");
+const base = document.createElement("canvas");
+const bctx = base.getContext("2d", { willReadFrequently: true });
+const MAX_BYTES = 10 * 1024 * 1024;
+const RATIOS = [["原图","orig"],["自由",0],["1:1",1],["16:9",16/9],["9:16",9/16],["4:3",4/3],["3:4",3/4],["16:10",1.6],["10:16",.625],["3:2",1.5],["2:3",2/3]];
+function ratioVal(){
+  return cropRatio === "orig" ? base.width / base.height : cropRatio;
+}
+
+let hasImg = false, mode = "view", scale = 1;
+let history = [], hIndex = -1, HIST_MAX = 15;
+let originalFile = null;
+let crop = null, cropRatio = 0, cropDrag = null;
+let brush = 48, mosaicStroke = null;
+let texts = [], selText = null, textDrag = null;
+let maskC = document.createElement("canvas"), mctx = maskC.getContext("2d");
+let maskSize = 40, maskStroke = null;
+let aiBusy = false;
+
+/* ================= AI 引擎与模型 ================= */
+const AI = {
+  ORT_SCRIPTS: [
+    "ort/ort.min.js",
+    "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js",
+    "https://unpkg.com/onnxruntime-web@1.16.3/dist/ort.min.js",
+  ],
+  MODELS: {
+    u2netp: { label: "抠图模型 SILUETA (42MB)", urls: [
+      "models/u2netp.onnx",
+      "https://hf-mirror.com/jellybox/silueta/resolve/main/silueta_320.onnx",
+      "https://huggingface.co/jellybox/silueta/resolve/main/silueta_320.onnx",
+    ]},
+    migan: { label: "移除模型 MI-GAN (28MB)", urls: [
+      "models/migan_pipeline_v2.onnx",
+      "https://hf-mirror.com/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx",
+      "https://huggingface.co/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx",
+    ]},
+  },
+};
+function idb(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("editAI", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("models");
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet(k){
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const t = db.transaction("models").objectStore("models").get(k);
+    t.onsuccess = () => res(t.result || null);
+    t.onerror = () => rej(t.error);
+  });
+}
+async function idbSet(k, v){
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const t = db.transaction("models", "readwrite");
+    t.objectStore("models").put(v, k);
+    t.oncomplete = () => res();
+    t.onerror = () => rej(t.error);
+  });
+}
+async function fetchBuf(url, onProg){
+  // 弱网/断网兜底：连接 30s 超时；下载中 45s 无进展视为卡死，避免无限挂起
+  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+  let to = null;
+  if(ac) to = setTimeout(() => ac.abort(), 30000);
+  let r;
+  try{
+    r = await fetch(url, ac ? { signal: ac.signal } : {});
+  }catch(e){
+    if(to) clearTimeout(to);
+    throw new Error(/abort/i.test(e.message) ? "网络连接超时，请检查网络后重试" : e.message);
+  }
+  if(!r.ok){ if(to) clearTimeout(to); throw new Error("HTTP " + r.status); }
+  const total = +r.headers.get("content-length") || 0;
+  if(!r.body){
+    if(to) clearTimeout(to);
+    return await r.arrayBuffer();
+  }
+  const rd = r.body.getReader(); const chunks = []; let got = 0;
+  for(;;){
+    let chunk;
+    try{
+      const t2 = setTimeout(() => ac && ac.abort(), 45000);
+      const res = await rd.read();
+      clearTimeout(t2);
+      chunk = res;
+    }catch(e){
+      throw new Error("网络中断或超时，请检查网络后重试");
+    }
+    const { done, value } = chunk;
+    if(done) break;
+    chunks.push(value); got += value.length;
+    if(onProg) onProg(got, total);
+  }
+  if(to) clearTimeout(to);
+  const out = new Uint8Array(got); let o = 0;
+  for(const c of chunks){ out.set(c, o); o += c.length; }
+  return out.buffer;
+}
+function aiProg(text, g, t){
+  $("#aiBar").style.display = "flex";
+  $("#aiText").textContent = text;
+  const p = t ? Math.min(100, g / t * 100) : 0;
+  $("#aiFill").style.width = p + "%";
+  $("#aiPct").textContent = t ? Math.round(p) + "%" : "";
+}
+function aiDone(){ $("#aiBar").style.display = "none"; }
+let ortReady = false;
+function loadScript(src){
+  return new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error(src));
+    document.head.appendChild(s);
+  });
+}
+async function loadOrt(silent){
+  if(ortReady && window.ort) return;
+  // 老设备/旧 WebView 缺 WASM SIMD：模型与 wasm 均为 SIMD 版本，提前给出明确指引而非神秘报错
+  if(!WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])))
+    throw new Error("当前浏览器/WebView 过旧，缺少 WASM SIMD 支持，无法运行 AI 功能：请升级系统或更换较新的浏览器");
+  if(!silent) aiProg("加载推理引擎…", 0, 1);
+  try{ await loadScript("ort/ort-wasm.b64.js"); }catch(e){} // 本地 wasm data URI（file:// 离线关键）
+  let ok = false;
+  for(const src of AI.ORT_SCRIPTS){ // 本地 ort/ 优先（file:// 也可用），CDN 兜底
+    try{ await loadScript(src); if(window.ort){ ok = true; break; } }catch(e){}
+  }
+  if(!ok) throw new Error("推理引擎加载失败：请将 ort 文件夹与本 HTML 放在同一目录后重新打开（双击本地文件，勿在聊天预览中测试）");
+  ort.env.wasm.numThreads = 1;
+  // wasm 二进制 → Blob URL，经 wasmPaths 对象映射注入（file:// 离线关键，data URI 会超 2MB 上限）
+  ortWasmLocal = false;
+  try{
+    if(!window.ORT_WASM_THREADED_B64 && !window.ORT_WASM_SIMD_B64){
+      await loadScript("ort/ort-wasm.b64.js");
+    }
+    const paths = {};
+    for(const [name, g] of [["ort-wasm-simd-threaded.wasm", "ORT_WASM_THREADED_B64"],
+                            ["ort-wasm-simd.wasm", "ORT_WASM_SIMD_B64"]]){
+      if(window[g]){
+        paths[name] = URL.createObjectURL(new Blob([b64ToBuf(window[g])], { type: "application/wasm" }));
+        window[g] = null;
+      }
+    }
+    if(Object.keys(paths).length){ ort.env.wasm.wasmPaths = paths; ortWasmLocal = true; }
+  }catch(e){}
+  ortReady = true;
+}
+let ortWasmLocal = false; // 本地 wasm 注入成功与否，用于失败时给出可操作的提示
+function aiErr(e){
+  const inPreview = location.protocol === "http:" && /127\.0\.0\.1|localhost/.test(location.hostname);
+  const tip = inPreview ? "（当前在聊天预览中打开，预览只有 HTML 单文件：请把 HTML 与 ort、models 文件夹放同一目录，双击本地文件打开测试）" : "";
+  if(!window.ort) return "推理引擎缺失（ort 文件夹）：请将 ort 文件夹与本 HTML 放同一目录，双击本地文件打开" + tip;
+  if(!ortWasmLocal) return "本地引擎缺失且网络不可用：请将 ort 文件夹与本 HTML 放同一目录后重新打开" + tip;
+  if(/no available backend|Aborted|wasm/i.test(e.message)) return "引擎运行时获取失败：请将 ort 文件夹与本 HTML 放同一目录（离线必需），或检查网络" + tip;
+  return e.message;
+}
+const B64_KEY = { u2netp: "MODEL_U2NETP_B64", migan: "MODEL_MIGAN_B64" };
+const localTried = {};
+function b64ToBuf(b64){
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8.buffer;
+}
+function loadLocalModelScript(key){
+  // <script> 在 file:// 下可读本地产物，双击打开也能完全离线
+  return new Promise(res => {
+    const s = document.createElement("script");
+    s.src = "models/" + key + ".b64.js";
+    s.onload = () => res(true);
+    s.onerror = () => res(false);
+    document.head.appendChild(s);
+  });
+}
+async function getModel(key){
+  // 1) 本地 base64 模型（models/ 目录与 HTML 同在）
+  if(!window[B64_KEY[key]] && !localTried[key]){
+    localTried[key] = true;
+    await loadLocalModelScript(key);
+  }
+  if(window[B64_KEY[key]]){
+    try{
+      const buf = b64ToBuf(window[B64_KEY[key]]);
+      window[B64_KEY[key]] = null;
+      await idbSet(key + "_v2", buf).catch(() => {});
+      return buf;
+    }catch(e){}
+  }
+  // 2) IndexedDB 缓存（此前联网下载过）
+  const cached = await idbGet(key + "_v2").catch(() => null);
+  if(cached) return cached;
+  // 3) 同目录 onnx（http 部署）→ 远程源
+  let lastErr;
+  for(const url of AI.MODELS[key].urls){
+    try{
+      const buf = await fetchBuf(url, (g, t) => aiProg("首次下载 " + AI.MODELS[key].label, g, t));
+      await idbSet(key + "_v2", buf).catch(() => {});
+      return buf;
+    }catch(e){ lastErr = e; }
+  }
+  throw lastErr || new Error("模型下载失败");
+}
+function resetMask(){
+  mctx.clearRect(0, 0, maskC.width, maskC.height);
+}
+function maskBBox(){
+  if(!hasImg) return null;
+  const d = mctx.getImageData(0, 0, maskC.width, maskC.height).data;
+  let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+  const W = maskC.width;
+  for(let y = 0; y < maskC.height; y++){
+    for(let x = 0; x < W; x++){
+      if(d[(y * W + x) * 4 + 3] > 40){
+        if(x < x0) x0 = x; if(x > x1) x1 = x;
+        if(y < y0) y0 = y; if(y > y1) y1 = y;
+      }
+    }
+  }
+  return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+function maskStrokeTo(p){
+  const step = Math.max(2, maskSize / 4);
+  const last = maskStroke.last;
+  mctx.fillStyle = "#fff";
+  if(!last){ // 起笔
+    mctx.beginPath(); mctx.arc(p.x, p.y, maskSize / 2, 0, Math.PI * 2); mctx.fill();
+  } else { // 沿线插值补圆，快速拖动也不断线
+    const d = Math.hypot(p.x - last.x, p.y - last.y);
+    const n = Math.ceil(d / step);
+    for(let i = 1; i <= n; i++){
+      mctx.beginPath();
+      mctx.arc(last.x + (p.x - last.x) * i / n, last.y + (p.y - last.y) * i / n, maskSize / 2, 0, Math.PI * 2);
+      mctx.fill();
+    }
+  }
+  maskStroke.last = p;
+  redraw();
+}
+async function runMatting(){
+  if(!hasImg){ toast("请先导入图片"); return; }
+  if(aiBusy) return;
+  aiBusy = true;
+  try{
+    await loadOrt();
+    const buf = await getModel("u2netp");
+    aiProg("初始化会话…", 0, 1);
+    const sess = await ort.InferenceSession.create(buf, { executionProviders: ["wasm"] });
+    aiProg("正在抠图…（CPU 约几秒）", 0, 1);
+    await new Promise(r => setTimeout(r, 60));
+    const S = 320;
+    const tmp = document.createElement("canvas");
+    tmp.width = S; tmp.height = S;
+    const tc = tmp.getContext("2d");
+    tc.drawImage(base, 0, 0, S, S);
+    const d = tc.getImageData(0, 0, S, S).data;
+    const inp = new Float32Array(3 * S * S);
+    const mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225];
+    for(let i = 0; i < S * S; i++)
+      for(let c = 0; c < 3; c++)
+        inp[c * S * S + i] = (d[i * 4 + c] / 255 - mean[c]) / std[c];
+    const feeds = { [sess.inputNames[0]]: new ort.Tensor("float32", inp, [1, 3, S, S]) };
+    const out = await sess.run(feeds);
+    const pred = out[sess.outputNames[0]].data;
+    let ma = -1e9, mi = 1e9;
+    for(let i = 0; i < S * S; i++){ if(pred[i] > ma) ma = pred[i]; if(pred[i] < mi) mi = pred[i]; }
+    const rng = ma - mi || 1;
+    const mSmall = document.createElement("canvas");
+    mSmall.width = S; mSmall.height = S;
+    const sc = mSmall.getContext("2d");
+    const sd = sc.createImageData(S, S);
+    for(let i = 0; i < S * S; i++){
+      const v = Math.round((pred[i] - mi) / rng * 255);
+      sd.data[i*4] = 255; sd.data[i*4+1] = 255; sd.data[i*4+2] = 255;
+      sd.data[i*4+3] = v;
+    }
+    sc.putImageData(sd, 0, 0);
+    const big = document.createElement("canvas");
+    big.width = base.width; big.height = base.height;
+    big.getContext("2d").drawImage(mSmall, 0, 0, big.width, big.height);
+    const mk = big.getContext("2d").getImageData(0, 0, big.width, big.height);
+    const img = bctx.getImageData(0, 0, base.width, base.height);
+    for(let i = 0; i < img.data.length; i += 4)
+      img.data[i + 3] = Math.round(img.data[i + 3] * mk.data[i + 3] / 255);
+    bctx.putImageData(img, 0, 0);
+    crop = null;
+    pushHistory(); redraw();
+    toast("抠图完成，导出 PNG 可保留透明背景", "ok");
+  }catch(e){
+    toast("抠图失败：" + aiErr(e), "err");
+  }finally{    aiBusy = false; aiDone();
+  }
+}
+async function runErase(){
+  if(!hasImg){ toast("请先导入图片"); return; }
+  if(aiBusy) return;
+  const bb = maskBBox();
+  if(!bb){ toast("请先用笔刷涂抹要移除的区域"); return; }
+  aiBusy = true;
+  try{
+    await loadOrt();
+    const buf = await getModel("migan");
+    aiProg("初始化会话…", 0, 1);
+    const sess = await ort.InferenceSession.create(buf, { executionProviders: ["wasm"] });
+    const pad = Math.max(bb.w, bb.h) * 0.35 + 24;
+    let x0 = Math.max(0, bb.x - pad), y0 = Math.max(0, bb.y - pad);
+    let x1 = Math.min(base.width, bb.x + bb.w + pad), y1 = Math.min(base.height, bb.y + bb.h + pad);
+    const w = Math.round(x1 - x0), h = Math.round(y1 - y0);
+    const k = Math.min(1, 512 / Math.max(w, h)); // MI-GAN 为 512 分辨率训练，超界推理质量下降
+    const tw = Math.max(16, Math.round(w * k)), th = Math.max(16, Math.round(h * k));
+    aiProg("正在移除…（CPU 约几秒）", 0, 1);
+    await new Promise(r => setTimeout(r, 60));
+    const tC = document.createElement("canvas");
+    tC.width = tw; tC.height = th;
+    const tc = tC.getContext("2d");
+    tc.drawImage(base, x0, y0, w, h, 0, 0, tw, th);
+    const td = tc.getImageData(0, 0, tw, th).data;
+    const imgT = new Uint8Array(3 * tw * th);
+    for(let i = 0; i < tw * th; i++){
+      imgT[i] = td[i*4];
+      imgT[tw*th + i] = td[i*4 + 1];
+      imgT[2*tw*th + i] = td[i*4 + 2];
+    }
+    const mC = document.createElement("canvas");
+    mC.width = tw; mC.height = th;
+    const mc = mC.getContext("2d");
+    mc.drawImage(maskC, x0, y0, w, h, 0, 0, tw, th);
+    const md = mc.getImageData(0, 0, tw, th).data;
+    const maskT = new Uint8Array(tw * th);
+    for(let i = 0; i < tw * th; i++) maskT[i] = md[i*4 + 3] > 40 ? 0 : 255; // MI-GAN/LaMa 约定：0=待修补(hole)，255=保留
+    const feeds = {
+      [sess.inputNames[0]]: new ort.Tensor("uint8", imgT, [1, 3, th, tw]),
+      [sess.inputNames[1]]: new ort.Tensor("uint8", maskT, [1, 1, th, tw]),
+    };
+    const out = await sess.run(feeds);
+    const od = out[sess.outputNames[0]].data;
+    const oC = document.createElement("canvas");
+    oC.width = tw; oC.height = th;
+    const oc = oC.getContext("2d");
+    const odim = oc.createImageData(tw, th);
+    const cl = v => Math.max(0, Math.min(255, Math.round(v)));
+    for(let i = 0; i < tw * th; i++){
+      odim.data[i*4] = cl(od[i]);
+      odim.data[i*4+1] = cl(od[tw*th + i]);
+      odim.data[i*4+2] = cl(od[2*tw*th + i]);
+      odim.data[i*4+3] = 255;
+    }
+    oc.putImageData(odim, 0, 0);
+    bctx.drawImage(oC, 0, 0, tw, th, x0, y0, w, h);
+    resetMask();
+    crop = null;
+    pushHistory(); redraw();
+    toast("移除完成，不满意可撤销后多涂一点再试", "ok");
+  }catch(e){
+    const msg = (!window.ort || !ortWasmLocal || /no available backend|aborted/i.test(e.message)) ? aiErr(e)
+      : /fetch|network/i.test(e.message) ? "模型获取失败：请将 models 文件夹与本 HTML 放同一目录后重新打开，或检查网络后重试"
+      : e.message;
+    toast("移除失败：" + msg, "err");
+  }finally{
+    aiBusy = false; aiDone();
+  }
+}
+
+/* ================= 提示 ================= */
+let toastTimer = null;
+function toast(msg, type=""){
+  const t = $("#toast");
+  t.textContent = msg; t.className = "show " + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = "", 2400);
+}
+
+/* ================= 打开图片 ================= */
+function openFile(file){
+  if(!file) return;
+  if(aiBusy){ toast("AI 正在处理，请稍候…"); return; }
+  if(!/^image\//.test(file.type)){ toast("这不是图片文件", "err"); return; }
+  if(file.size > 30 * 1024 * 1024) toast("图片较大，处理可能稍慢");
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    base.width = img.naturalWidth; base.height = img.naturalHeight;
+    bctx.drawImage(img, 0, 0);
+    originalFile = file;
+    history = []; hIndex = -1; pushHistory(true);
+    texts = []; selText = null; crop = null; setMode("view");
+    maskC.width = base.width; maskC.height = base.height;
+    resetMask();
+    const defB = Math.max(12, Math.min(200, Math.round(base.width / 25))); // 笔刷随图幅自适应
+    brush = defB; maskSize = defB;
+    $("#brushRange").value = defB; $("#brushVal").textContent = defB + "px";
+    $("#maskRange").value = defB; $("#maskVal").textContent = defB + "px";
+    hasImg = true;
+    $("#dropzone").style.display = "none";
+    $("#stage").style.display = "block";
+    $("#fileinfo").textContent = `${file.name} · ${base.width}×${base.height} · ${(file.size/1024/1024).toFixed(2)}MB`;
+    const mp = base.width * base.height / 1e6;
+    HIST_MAX = mp > 16 ? 5 : mp > 10 ? 8 : 15;
+    if(mp > 20) toast(`图片 ${mp.toFixed(0)}MP 较大，撤销步数已减少以保证流畅`);
+    fitView(); redraw();
+    setTimeout(() => loadOrt(true).catch(() => {}), 2500); // 空闲后再静默预热推理引擎（27.7MB 解析不抢首屏），点抠图/移除时免去等待
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast("图片解码失败", "err"); };
+  img.src = url;
+}
+
+$("#fileInput").addEventListener("change", e => openFile(e.target.files[0]));
+$("#btnOpen").onclick = () => $("#fileInput").click();
+$("#dropzone").onclick = () => $("#fileInput").click();
+document.addEventListener("dragover", e => { e.preventDefault(); $("#dropzone").classList.add("drag"); });
+document.addEventListener("dragleave", e => { if(!e.relatedTarget) $("#dropzone").classList.remove("drag"); });
+document.addEventListener("drop", e => {
+  e.preventDefault(); $("#dropzone").classList.remove("drag");
+  openFile(e.dataTransfer.files[0]);
+});
+document.addEventListener("paste", e => {
+  for(const it of e.clipboardData.items)
+    if(it.type.startsWith("image/")){ openFile(it.getAsFile()); break; }
+});
+
+/* ================= 历史/撤销 ================= */
+function pushHistory(silent){
+  const snap = document.createElement("canvas");
+  snap.width = base.width; snap.height = base.height;
+  snap.getContext("2d").drawImage(base, 0, 0);
+  history = history.slice(0, hIndex + 1);
+  history.push(snap);
+  if(history.length > HIST_MAX) history.shift();
+  hIndex = history.length - 1;
+  if(!silent) updateInfo();
+}
+function undo(){
+  if(aiBusy){ toast("AI 正在处理，请稍候…"); return; }
+  if(!hasImg || hIndex <= 0){ toast("没有可撤销的操作"); return; }
+  hIndex--;
+  const snap = history[hIndex];
+  base.width = snap.width; base.height = snap.height;
+  bctx.drawImage(snap, 0, 0);
+  maskC.width = base.width; maskC.height = base.height;
+  crop = null; setMode(mode === "crop" ? "view" : mode);
+  fitView(); redraw(); updateInfo();
+  toast("已撤销", "ok");
+}
+$("#btnUndo").onclick = undo;
+document.addEventListener("keydown", e => {
+  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)){
+    e.preventDefault(); undo();
+  }
+});
+
+$("#btnReset").onclick = () => {
+  if(!originalFile){ toast("尚未打开图片"); return; }
+  openFile(originalFile);
+  toast("已还原为原图", "ok");
+};
+
+/* ================= 视图 ================= */
+function fitView(){
+  if(!hasImg) return;
+  cv.width = base.width; cv.height = base.height;
+  const m = document.querySelector("main");
+  scale = Math.min((m.clientWidth - 36) / base.width, (m.clientHeight - 36) / base.height, 1);
+  cv.style.width = (base.width * scale) + "px";
+  cv.style.height = (base.height * scale) + "px";
+}
+window.addEventListener("resize", () => { if(hasImg){ fitView(); redraw(); } });
+
+let rafPending = false;
+function redraw(){
+  if(rafPending) return; // rAF 合帧：拖动/涂抹高频触发时每帧只绘一次，大图不卡
+  rafPending = true;
+  requestAnimationFrame(() => {
+    rafPending = false;
+    if(!hasImg) return;
+    vctx.clearRect(0, 0, cv.width, cv.height);
+    vctx.drawImage(base, 0, 0);
+    if(mode === "crop" && crop) drawCropOverlay();
+    if(mode === "text") drawTextOverlay();
+    if(mode === "remove" && hasImg){
+      vctx.save();
+      vctx.globalAlpha = .55;
+      vctx.drawImage(maskC, 0, 0);
+      vctx.restore();
+    }
+    updateInfo();
+  });
+}
+function updateInfo(){
+  if(mode === "crop" && crop)
+    $("#cropInfo").textContent = `裁剪区域 ${Math.round(crop.w)}×${Math.round(crop.h)}`;
+  else $("#cropInfo").textContent = "";
+}
+
+/* 指针坐标 → 原图像素 */
+function pt(e){
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * base.width / r.width,
+           y: (e.clientY - r.top) * base.height / r.height };
+}
+function dispPx(v){ return v / scale; } // 原图像素→显示像素
+
+/* ================= 模式切换 ================= */
+const MODE_BTNS = { crop:"#btnCrop", mosaic:"#btnMosaic", text:"#btnText", remove:"#btnErase" };
+const MODE_PANELS = { crop:"#panelCrop", mosaic:"#panelMosaic", text:"#panelText", remove:"#panelRemove" };
+function setMode(m){
+  if(!hasImg && m !== "view"){ toast("请先导入图片"); return; }
+  if(aiBusy){ toast("AI 正在处理，请稍候…"); return; }
+  if(mode === "crop" && m !== "crop") crop = null;
+  mode = m;
+  if(m === "crop" && !crop) crop = defaultCrop(); // 进入裁剪即出现初始框
+  for(const k in MODE_BTNS) $(MODE_BTNS[k]).classList.toggle("mode-on", k === m);
+  for(const k in MODE_PANELS) $(MODE_PANELS[k]).classList.toggle("show", k === m);
+  if(hasImg){ fitView(); redraw(); } // 面板占位变化后按剩余空间重算显示大小（不动真实分辨率）
+  cv.style.cursor = (m === "mosaic" || m === "remove") ? "crosshair" : (m === "view" ? "default" : "move");
+  if(m === "text") syncTextPanel();
+  if(m !== "remove") resetMask();
+  redraw();
+}
+$("#btnCrop").onclick = () => setMode(mode === "crop" ? "view" : "crop");
+$("#btnMosaic").onclick = () => setMode(mode === "mosaic" ? "view" : "mosaic");
+$("#btnText").onclick = () => setMode(mode === "text" ? "view" : "text");
+$("#btnRemoveBg").onclick = () => { if(aiBusy) return; runMatting(); };
+$("#btnErase").onclick = () => setMode(mode === "remove" ? "view" : "remove");
+$("#maskRange").oninput = e => { maskSize = +e.target.value; $("#maskVal").textContent = maskSize + "px"; };
+$("#btnEraseGo").onclick = () => runErase();
+$("#btnEraseClear").onclick = () => { resetMask(); redraw(); };
+$("#btnEraseCancel").onclick = () => { resetMask(); setMode("view"); };
+
+/* ================= 旋转 / 镜像 ================= */
+function transformBase(fn){
+  if(aiBusy){ toast("AI 正在处理，请稍候…"); return; }
+  if(!hasImg){ toast("请先导入图片"); return; }
+  const src = base;
+  const out = document.createElement("canvas");
+  fn(out, src);
+  base.width = out.width; base.height = out.height;
+  bctx.drawImage(out, 0, 0);
+  maskC.width = base.width; maskC.height = base.height;
+  crop = null;
+  pushHistory(); fitView(); redraw();
+}
+$("#btnRotate").onclick = () => transformBase((out, src) => { // 逆时针90°
+  out.width = src.height; out.height = src.width;
+  const c = out.getContext("2d");
+  c.translate(0, out.height); // 平移量 = 原图宽 = 新画布高；用 out.width 会导致竖图只显示一条
+  c.rotate(-Math.PI / 2);
+  c.drawImage(src, 0, 0);
+});
+$("#btnMirror").onclick = () => transformBase((out, src) => { // 水平镜像
+  out.width = src.width; out.height = src.height;
+  const c = out.getContext("2d");
+  c.translate(out.width, 0); c.scale(-1, 1);
+  c.drawImage(src, 0, 0);
+});
+
+/* ================= 裁剪 ================= */
+const ratioBox = $("#ratioChips");
+RATIOS.forEach(([name, r]) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = name;
+  b.onclick = () => {
+    cropRatio = r;
+    ratioBox.querySelectorAll(".chip").forEach(c => c.classList.remove("on"));
+    b.classList.add("on");
+    if(crop) crop = fitRatioRect(crop); redraw();
+  };
+  ratioBox.appendChild(b);
+});
+ratioBox.children[0].classList.add("on"); // 默认：原图比例裁剪
+cropRatio = "orig"; // chip 高亮同步设置内部值，否则内部仍是 0（自由）
+
+function fitRatioRect(rect){
+  const ratio = ratioVal();
+  if(!ratio) return rect;
+  const img = { w: base.width, h: base.height };
+  let w = rect.w, h = w / ratio;
+  if(h > img.h){ h = img.h; w = h * ratio; }
+  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+  let x = cx - w / 2, y = cy - h / 2;
+  x = Math.max(0, Math.min(x, img.w - w));
+  y = Math.max(0, Math.min(y, img.h - h));
+  return { x, y, w, h };
+}
+function defaultCrop(){
+  return fitRatioRect({ x: base.width * .1, y: base.height * .1,
+                        w: base.width * .8, h: base.height * .8 });
+}
+$("#btnCropApply").onclick = () => {
+  if(!crop || crop.w < 8 || crop.h < 8){ toast("裁剪区域太小"); return; }
+  const sx = Math.round(crop.x), sy = Math.round(crop.y);
+  const sw = Math.round(crop.w), sh = Math.round(crop.h);
+  const out = document.createElement("canvas");
+  out.width = sw; out.height = sh;
+  out.getContext("2d").drawImage(base, sx, sy, sw, sh, 0, 0, sw, sh);
+  base.width = sw; base.height = sh;
+  bctx.drawImage(out, 0, 0);
+  maskC.width = sw; maskC.height = sh;
+  crop = null; setMode("view");
+  pushHistory(); fitView(); redraw();
+  toast(`已裁剪为 ${sw}×${sh}`, "ok");
+};
+$("#btnCropCancel").onclick = () => { crop = null; setMode("view"); };
+
+function cropHandles(){
+  const { x, y, w, h } = crop, t = dispPx(11);
+  return [
+    { id:"nw", x, y }, { id:"n", x:x+w/2, y }, { id:"ne", x:x+w, y },
+    { id:"e", x:x+w, y:y+h/2 }, { id:"se", x:x+w, y:y+h }, { id:"s", x:x+w/2, y:y+h },
+    { id:"sw", x, y:y+h }, { id:"w", x, y:y+h/2 },
+  ].map(o => ({ ...o, t }));
+}
+function drawCropOverlay(){
+  const { x, y, w, h } = crop;
+  vctx.save();
+  vctx.fillStyle = "rgba(0,0,0,.55)";
+  vctx.fillRect(0, 0, cv.width, y);
+  vctx.fillRect(0, y + h, cv.width, cv.height - y - h);
+  vctx.fillRect(0, y, x, h);
+  vctx.fillRect(x + w, y, cv.width - x - w, h);
+  vctx.strokeStyle = "#2fbf71"; vctx.lineWidth = dispPx(2);
+  vctx.strokeRect(x, y, w, h);
+  vctx.strokeStyle = "rgba(255,255,255,.35)"; vctx.lineWidth = dispPx(1);
+  for(let i = 1; i <= 2; i++){ // 三分线
+    vctx.beginPath(); vctx.moveTo(x + w*i/3, y); vctx.lineTo(x + w*i/3, y + h); vctx.stroke();
+    vctx.beginPath(); vctx.moveTo(x, y + h*i/3); vctx.lineTo(x + w, y + h*i/3); vctx.stroke();
+  }
+  vctx.fillStyle = "#fff";
+  for(const hd of cropHandles()) vctx.fillRect(hd.x - hd.t/2, hd.y - hd.t/2, hd.t, hd.t);
+  vctx.restore();
+}
+function hitHandle(p){
+  for(const hd of cropHandles())
+    if(Math.abs(p.x - hd.x) < hd.t && Math.abs(p.y - hd.y) < hd.t) return hd.id;
+  return null;
+}
+const inRect = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+function clampRect(r){
+  r.x = Math.max(0, Math.min(r.x, base.width - 8));
+  r.y = Math.max(0, Math.min(r.y, base.height - 8));
+  r.w = Math.min(r.w, base.width - r.x);
+  r.h = Math.min(r.h, base.height - r.y);
+  r.w = Math.max(r.w, 8); r.h = Math.max(r.h, 8);
+  return r;
+}
+
+/* ================= 马赛克 ================= */
+$("#brushRange").oninput = e => { brush = +e.target.value; $("#brushVal").textContent = brush + "px"; };
+function pixelateCircle(cx, cy, r){
+  const x0 = Math.max(0, Math.floor(cx - r)), y0 = Math.max(0, Math.floor(cy - r));
+  const x1 = Math.min(base.width, Math.ceil(cx + r)), y1 = Math.min(base.height, Math.ceil(cy + r));
+  if(x1 <= x0 || y1 <= y0) return;
+  const bw = x1 - x0, bh = y1 - y0;
+  const block = Math.max(4, Math.round(brush / 3));
+  const cols = Math.max(1, Math.round(bw / block)), rows = Math.max(1, Math.round(bh / block));
+  const small = document.createElement("canvas");
+  small.width = cols; small.height = rows;
+  const sc = small.getContext("2d");
+  sc.imageSmoothingEnabled = true;
+  sc.drawImage(base, x0, y0, bw, bh, 0, 0, cols, rows);
+  bctx.save();
+  bctx.beginPath();
+  bctx.arc(cx, cy, r, 0, Math.PI * 2);
+  bctx.clip();
+  bctx.imageSmoothingEnabled = false;
+  bctx.drawImage(small, 0, 0, cols, rows, x0, y0, bw, bh);
+  bctx.restore();
+  bctx.imageSmoothingEnabled = true;
+}
+function strokeTo(p){
+  const step = Math.max(2, brush / 4);
+  const last = mosaicStroke.last;
+  if(!last){ pixelateCircle(p.x, p.y, brush / 2); }
+  else { // 沿线插值补采样，快速拖动不断线
+    const d = Math.hypot(p.x - last.x, p.y - last.y);
+    const n = Math.ceil(d / step);
+    for(let i = 1; i <= n; i++)
+      pixelateCircle(last.x + (p.x - last.x) * i / n, last.y + (p.y - last.y) * i / n, brush / 2);
+  }
+  mosaicStroke.last = p;
+  redraw();
+}
+
+/* ================= 文字 ================= */
+function makeText(x, y){
+  const size = Math.max(12, Math.round(+$("#txtSize").value * base.width / 800));
+  return { id: nextTextId(), x, y, content: $("#txtInput").value || "文字",
+           size, color: $("#txtColor").value, bold: $("#txtBold").checked };
+}
+let _seq = 0;
+function nextTextId(){ return ++_seq; }
+function textFont(t){ return `${t.bold ? "bold " : ""}${t.size}px "Segoe UI","Microsoft YaHei",sans-serif`; }
+function drawTextOverlay(){
+  vctx.save();
+  for(const t of texts){
+    vctx.font = textFont(t);
+    vctx.fillStyle = t.color;
+    vctx.textBaseline = "top";
+    vctx.fillText(t.content, t.x, t.y);
+    if(t === selText){
+      const w = vctx.measureText(t.content).width;
+      vctx.strokeStyle = "#2fbf71"; vctx.lineWidth = dispPx(1.5);
+      vctx.setLineDash([dispPx(5), dispPx(4)]);
+      vctx.strokeRect(t.x - dispPx(4), t.y - dispPx(2), w + dispPx(8), t.size * 1.25 + dispPx(4));
+      vctx.setLineDash([]);
+    }
+  }
+  vctx.restore();
+}
+function hitText(p){
+  for(let i = texts.length - 1; i >= 0; i--){
+    const t = texts[i];
+    vctx.font = textFont(t);
+    const w = vctx.measureText(t.content).width, h = t.size * 1.25;
+    if(p.x >= t.x - dispPx(6) && p.x <= t.x + w + dispPx(6) && p.y >= t.y - dispPx(6) && p.y <= t.y + h + dispPx(6))
+      return t;
+  }
+  return null;
+}
+function syncTextPanel(){
+  if(selText){
+    $("#txtInput").value = selText.content;
+    $("#txtSize").value = Math.round(selText.size * 800 / base.width);
+    $("#txtColor").value = selText.color;
+    $("#txtBold").checked = selText.bold;
+    $("#txtSizeVal").textContent = $("#txtSize").value + "px";
+  }
+}
+function liveEditText(){
+  if(!selText) return;
+  selText.content = $("#txtInput").value || " ";
+  selText.size = Math.max(12, Math.round(+$("#txtSize").value * base.width / 800));
+  selText.color = $("#txtColor").value;
+  selText.bold = $("#txtBold").checked;
+  redraw();
+}
+["#txtInput", "#txtSize", "#txtColor", "#txtBold"].forEach(s => {
+  $(s).addEventListener("input", () => {
+    $("#txtSizeVal").textContent = $("#txtSize").value + "px";
+    if(selText) liveEditText();
+  });
+});
+$("#btnTextAdd").onclick = () => {
+  const t = makeText(base.width / 2 - base.width * .1, base.height / 2);
+  texts.push(t); selText = t; syncTextPanel(); redraw();
+};
+$("#btnTextDel").onclick = () => {
+  if(!selText){ toast("请先在画布上点选一个文字"); return; }
+  texts = texts.filter(t => t !== selText);
+  selText = null; redraw();
+};
+$("#btnTextMerge").onclick = () => {
+  if(aiBusy){ toast("AI 正在处理，请稍候…"); return; }
+  if(!texts.length){ toast("没有可合并的文字"); return; }
+  bctx.save();
+  for(const t of texts){
+    bctx.font = textFont(t);
+    bctx.fillStyle = t.color;
+    bctx.textBaseline = "top";
+    bctx.fillText(t.content, t.x, t.y);
+  }
+  bctx.restore();
+  texts = []; selText = null;
+  pushHistory(); redraw();
+  toast("文字已合并到图片", "ok");
+};
+
+/* ================= 指针事件统一处理 ================= */
+cv.addEventListener("pointerdown", e => {
+  if(!hasImg) return;
+  if(aiBusy){ toast("AI 正在处理，请稍候…"); return; }
+  cv.setPointerCapture(e.pointerId);
+  const p = pt(e);
+  if(mode === "crop"){
+    if(!crop) crop = defaultCrop();
+    const hd = hitHandle(p);
+    if(hd) cropDrag = { type: "resize", id: hd, start: { ...crop }, p0: p };
+    else if(inRect(p, crop)) cropDrag = { type: "move", start: { ...crop }, p0: p };
+    else cropDrag = { type: "new", p0: p };
+  } else if(mode === "mosaic"){
+    pushHistory(true);
+    mosaicStroke = { last: null };
+    strokeTo(p);
+  } else if(mode === "remove"){
+    maskStroke = { last: null };
+    maskStrokeTo(p);
+  } else if(mode === "text"){
+    const t = hitText(p);
+    if(t){ selText = t; textDrag = { t, off: { x: p.x - t.x, y: p.y - t.y } }; syncTextPanel(); }
+    else selText = null;
+    redraw();
+  }
+});
+cv.addEventListener("pointermove", e => {
+  if(!hasImg) return;
+  const p = pt(e);
+  if(mode === "crop" && cropDrag){
+    const dx = p.x - cropDrag.p0.x, dy = p.y - cropDrag.p0.y;
+    if(cropDrag.type === "move"){
+      crop = { ...cropDrag.start, x: cropDrag.start.x + dx, y: cropDrag.start.y + dy };
+      clampRect(crop);
+      if(cropRatio){ // 平移后保持比例：整体尺寸不变，只夹位置
+        crop.w = cropDrag.start.w; crop.h = cropDrag.start.h;
+        crop.x = Math.max(0, Math.min(crop.x, base.width - crop.w));
+        crop.y = Math.max(0, Math.min(crop.y, base.height - crop.h));
+      }
+    } else if(cropDrag.type === "resize"){
+      const s = cropDrag.start, id = cropDrag.id;
+      const H = id.includes("w") ? "w" : (id.includes("e") ? "e" : "");
+      const V = id.includes("n") ? "n" : (id.includes("s") ? "s" : "");
+      // 锚点 = 对边/对角，固定不动
+      const ax = H === "w" ? s.x + s.w : H === "e" ? s.x : s.x + s.w / 2;
+      const ay = V === "n" ? s.y + s.h : V === "s" ? s.y : s.y + s.h / 2;
+      const cl = (v, a, b) => Math.max(a, Math.min(v, b));
+      let r;
+      if(!ratioVal()){
+        let l = s.x, t = s.y, rr = s.x + s.w, b = s.y + s.h;
+        if(H === "w") l = Math.min(p.x, rr - 24);
+        if(H === "e") rr = Math.max(p.x, l + 24);
+        if(V === "n") t = Math.min(p.y, b - 24);
+        if(V === "s") b = Math.max(p.y, t + 24);
+        l = Math.max(0, l); t = Math.max(0, t);
+        rr = Math.min(base.width, rr); b = Math.min(base.height, b);
+        if(rr - l < 24) l = rr - 24;
+        if(b - t < 24) t = b - 24;
+        r = { x: l, y: t, w: rr - l, h: b - t };
+      } else if(!H){ // 只拖上下边：宽以中心对称伸展
+        const CR = ratioVal();
+        const maxH = Math.min(V === "n" ? ay : base.height - ay, base.width / CR);
+        let h = cl(Math.abs(p.y - ay), Math.min(24, maxH), maxH);
+        const w = h * CR;
+        r = { x: cl(ax - w / 2, 0, base.width - w),
+              y: V === "n" ? ay - h : ay, w, h };
+      } else { // 角/左右边：宽随指针，高等比；先算锚点处等比盒最大可行宽再钳位
+        const CR = ratioVal();
+        const maxH = V === "n" ? ay : (V === "s" ? base.height - ay : base.height);
+        const maxW = Math.min(H === "w" ? ax : base.width - ax, maxH * CR);
+        const w = cl(Math.abs(p.x - ax), Math.min(24, maxW), maxW);
+        const h = w / CR;
+        r = { x: H === "w" ? ax - w : ax,
+              y: V === "n" ? ay - h : (V === "s" ? ay : ay - h / 2), w, h };
+        if(V === "") r.y = cl(r.y, 0, base.height - r.h); // 左右边：垂直居中伸出，钳回图内
+      }
+      crop = r;
+    } else { // 拖出新框
+      const w0 = Math.abs(p.x - cropDrag.p0.x), h0 = Math.abs(p.y - cropDrag.p0.y);
+      let w = w0, h = h0;
+      const CR = ratioVal(); // "原图"chip 时 cropRatio 是字符串 "orig"，必须走 ratioVal() 取数值比例
+      if(CR){ w = Math.max(w0, h0 * CR); h = w / CR; }
+      let x = p.x < cropDrag.p0.x ? cropDrag.p0.x - w : cropDrag.p0.x;
+      let y = p.y < cropDrag.p0.y ? cropDrag.p0.y - h : cropDrag.p0.y;
+      crop = clampRect({ x, y, w, h });
+    }
+    redraw();
+  } else if(mode === "mosaic" && mosaicStroke){
+    strokeTo(p);
+  } else if(mode === "remove" && maskStroke){
+    maskStrokeTo(p);
+  } else if(mode === "text" && textDrag){
+    textDrag.t.x = p.x - textDrag.off.x;
+    textDrag.t.y = p.y - textDrag.off.y;
+    redraw();
+  }
+});
+function endPointer(){
+  if(mode === "mosaic" && mosaicStroke){ mosaicStroke = null; updateInfo(); }
+  maskStroke = null;
+  cropDrag = null; textDrag = null;
+}
+cv.addEventListener("pointerup", endPointer);
+cv.addEventListener("pointercancel", endPointer);
+cv.addEventListener("pointerleave", () => { if(mode === "mosaic" && mosaicStroke) endPointer(); });
+
+/* ================= 导出 ================= */
+const toBlob = (c, fmt, q) => new Promise(res => c.toBlob(res, fmt, q));
+const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(2) + "MB" : Math.round(b / 1024) + "KB";
+function limitBytes(){
+  const v = parseFloat($("#expLimit").value);
+  return v > 0 ? v * 1048576 : Infinity;
+}
+function parseSel(){
+  return [Math.round(+$("#expW").value), Math.round(+$("#expH").value)];
+}
+let lockAr = 1; // 锁定比例 = 勾选时刻的当前宽高比（非原图比例、非输出图比例）
+function setLockAr(){
+  const w = +$("#expW").value, h = +$("#expH").value;
+  if(w >= 16 && h >= 16) lockAr = w / h;
+}
+function selDims(){
+  const v = $("#expSize").value;
+  if(v === "orig") return [base.width, base.height];
+  return v.split("x").map(Number);
+}
+function setDims(w, h){ $("#expW").value = Math.round(w); $("#expH").value = Math.round(h); }
+function imgAr(){ return base.width / base.height; }
+/* ---- 格式：JPG/JPEG/PNG 常驻，WEBP/AVIF 探测支持后显示，BMP/ICO 手动编码 ---- */
+const FMTS = [
+  { ext: "jpg",  label: "JPG",          mime: "image/jpeg",   q: true },
+  { ext: "jpeg", label: "JPEG",         mime: "image/jpeg",   q: true },
+  { ext: "png",  label: "PNG",          mime: "image/png",    q: false },
+  { ext: "webp", label: "WEBP",         mime: "image/webp",   q: true,  detect: true },
+  { ext: "bmp",  label: "BMP（无损）",  mime: "image/bmp",    q: false, custom: "bmp" },
+  { ext: "ico",  label: "ICO 图标",     mime: "image/x-icon", q: false, custom: "ico" },
+  { ext: "avif", label: "AVIF",         mime: "image/avif",   q: true,  detect: true },
+];
+const fmtSupport = {};
+let fmtFilled = false;
+function encodeBMP(c){
+  const w = c.width, h = c.height;
+  const d = c.getContext("2d").getImageData(0, 0, w, h).data;
+  const rowSize = Math.floor((24 * w + 31) / 32) * 4;
+  const dataSize = rowSize * h;
+  const buf = new ArrayBuffer(54 + dataSize);
+  const v = new DataView(buf);
+  v.setUint8(0, 0x42); v.setUint8(1, 0x4D);
+  v.setUint32(2, 54 + dataSize, true); v.setUint32(10, 54, true);
+  v.setUint32(14, 40, true); v.setInt32(18, w, true); v.setInt32(22, h, true);
+  v.setUint16(26, 1, true); v.setUint16(28, 24, true);
+  v.setUint32(34, dataSize, true);
+  v.setInt32(38, 2835, true); v.setInt32(42, 2835, true);
+  for(let y = h - 1; y >= 0; y--){
+    let p = 54 + (h - 1 - y) * rowSize;
+    for(let x = 0; x < w; x++){
+      const i = (y * w + x) * 4;
+      v.setUint8(p++, d[i + 2]); v.setUint8(p++, d[i + 1]); v.setUint8(p++, d[i]);
+    }
+  }
+  return new Blob([buf], { type: "image/bmp" });
+}
+async function encodeICO(pngBlob, w, h){
+  const head = new ArrayBuffer(6), entry = new ArrayBuffer(16);
+  const hv = new DataView(head);
+  hv.setUint16(2, 1, true); hv.setUint16(4, 1, true);
+  const ev = new DataView(entry);
+  ev.setUint8(0, w >= 256 ? 0 : w); ev.setUint8(1, h >= 256 ? 0 : h);
+  ev.setUint16(4, 1, true); ev.setUint16(6, 32, true);
+  ev.setUint32(8, pngBlob.size, true); ev.setUint32(12, 22, true);
+  const png = new Uint8Array(await pngBlob.arrayBuffer());
+  return new Blob([head, entry, png], { type: "image/x-icon" });
+}
+async function detectFormats(){
+  const c = document.createElement("canvas");
+  c.width = 2; c.height = 2;
+  for(const f of FMTS){
+    if(!f.detect) continue;
+    try{
+      const b = await new Promise(res => c.toBlob(res, f.mime));
+      fmtSupport[f.ext] = !!b && b.type === f.mime;
+    }catch(e){ fmtSupport[f.ext] = false; }
+  }
+}
+function fillFmtSelect(){
+  const sel = $("#expFmt");
+  sel.innerHTML = "";
+  for(const f of FMTS){
+    if(f.detect && !fmtSupport[f.ext]) continue;
+    const o = document.createElement("option");
+    o.value = f.ext; o.textContent = f.label;
+    sel.appendChild(o);
+  }
+  fmtFilled = true;
+}
+function curFmt(){ return FMTS.find(f => f.ext === $("#expFmt").value); }
+function syncFmtUI(){
+  const f = curFmt();
+  $("#qRow").style.display = f && f.q ? "flex" : "none";
+  $("#fmtNote").textContent = f && f.custom === "ico" ? "最大 256×256" : "";
+}
+function buildSizes(){
+  const sel = $("#expSize"); sel.innerHTML = "";
+  const iw = base.width, ih = base.height;
+  const g = name => { const og = document.createElement("optgroup"); og.label = name; sel.appendChild(og); return og; };
+  const add = (og, w, h) => { const o = document.createElement("option"); o.value = w + "x" + h; o.textContent = w + "×" + h; og.appendChild(o); };
+  add(g("推荐"), iw, ih); sel.lastChild.lastChild.textContent = `原始尺寸 ${iw}×${ih}`; sel.lastChild.lastChild.value = "orig";
+  const co = document.createElement("option"); co.value = "custom"; co.textContent = "自定义"; sel.appendChild(co);
+  const groups = [
+    ["1:1", [[500,500],[600,600],[800,800],[1000,1000],[1200,1200],[1500,1500],[2000,2000],[3000,3000]]],
+    ["16:9 横版", [[960,540],[1280,720],[1600,900],[1920,1080],[2560,1440],[3840,2160]]],
+    ["9:16 竖版", [[540,960],[720,1280],[1080,1920],[1440,2560],[2160,3840]]],
+    ["4:3 / 3:4", [[640,480],[800,600],[1024,768],[1600,1200],[2048,1536],[480,640],[600,800],[768,1024],[1200,1600],[1536,2048]]],
+    ["3:2 / 2:3", [[900,600],[1350,900],[1500,1000],[3000,2000],[600,900],[1000,1500],[2000,3000]]],
+  ];
+  for(const [name, list] of groups){ const og = g(name); list.forEach(([w,h]) => add(og, w, h)); }
+  sel.value = "orig"; // 默认输出当前图片的原始尺寸
+}
+function syncSizeSel(){ // W/H 与尺寸下拉实时联动：匹配不到预设则显示「自定义」
+  const [w, h] = parseSel();
+  const hit = (w === base.width && h === base.height) ? "orig"
+    : [...$("#expSize").options].find(o => {
+        if(o.value === "orig" || o.value === "custom") return false;
+        const [pw, ph] = o.value.split("x").map(Number);
+        return pw === w && ph === h;
+      })?.value;
+  $("#expSize").value = hit || "custom";
+}
+function openExport(){
+  if(!hasImg){ toast("请先导入图片"); return; }
+  if(aiBusy){ toast("AI 正在处理，请稍候…"); return; }
+  if(!fmtFilled) fillFmtSelect();
+  buildSizes();
+  const [w, h] = selDims();
+  setDims(w, h);
+  $("#expLock").checked = true; // 默认锁定，锁定基准 = 打开面板时的当前数值
+  setLockAr();
+  const t = originalFile ? originalFile.type : "";
+  const defExt = t === "image/png" ? "png"
+    : (t === "image/webp" && fmtSupport.webp) ? "webp" : "jpg"; // 默认与导入格式一致
+  if([...$("#expFmt").options].some(o => o.value === defExt)) $("#expFmt").value = defExt;
+  syncFmtUI();
+  updEst();
+  $("#exportMask").classList.add("show");
+}
+$("#btnExport").onclick = openExport;
+$("#btnExpCancel").onclick = () => $("#exportMask").classList.remove("show");
+$("#exportMask").onclick = e => { if(e.target === e.currentTarget) $("#exportMask").classList.remove("show"); };
+$("#expSize").onchange = () => {
+  const [w, h] = selDims();
+  setDims(w, h);
+  if($("#expLock").checked) setLockAr(); // 勾选状态下选预设：以预设数值为新锁定基准
+  updEst();
+};
+$("#expW").oninput = () => {
+  if($("#expLock").checked && +$("#expW").value >= 16) setDims(+$("#expW").value, +$("#expW").value / lockAr);
+  syncSizeSel(); updEst();
+};
+$("#expH").oninput = () => {
+  if($("#expLock").checked && +$("#expH").value >= 16) setDims(+$("#expH").value * lockAr, +$("#expH").value);
+  syncSizeSel(); updEst();
+};
+$("#expLock").onchange = () => { // 重新勾选锁定：以当前数值比例为准
+  if($("#expLock").checked) setLockAr();
+  updEst();
+};
+$("#expFmt").onchange = () => { syncFmtUI(); updEst(); };
+$("#expQ").oninput = e => { $("#expQVal").textContent = e.target.value + "%"; updEst(); };
+$("#expLimit").oninput = updEst;
+
+let estTimer = null;
+function updEst(){ clearTimeout(estTimer); estTimer = setTimeout(estimateSize, 200); }
+async function estimateSize(){
+  if(!hasImg || !$("#exportMask").classList.contains("show")) return;
+  const fmt = curFmt(); if(!fmt) return;
+  let [W, H] = parseSel();
+  if(!(W >= 16 && H >= 16)){ $("#expInfo").textContent = "尺寸无效"; return; }
+  const lim = limitBytes();
+  let est = 0;
+  if(fmt.custom === "bmp"){
+    est = 54 + Math.floor((24 * W + 31) / 32) * 4 * H; // BMP 体积可精确算出
+  } else {
+    if(fmt.custom === "ico" && Math.max(W, H) > 256){
+      const ck = 256 / Math.max(W, H);
+      W = Math.max(16, Math.round(W * ck)); H = Math.max(16, Math.round(H * ck));
+    }
+    $("#expInfo").textContent = "估算中…";
+    await new Promise(r => setTimeout(r, 0)); // 让提示先渲染
+    const q = +$("#expQ").value / 100;
+    // 与导出完全一致：全尺寸 + contain-fit 绘制后真实编码（PNG 压缩非线性，采样外推不准）
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const cc = c.getContext("2d");
+    cc.imageSmoothingQuality = "high";
+    if(fmt.mime !== "image/png" && fmt.custom !== "ico"){ cc.fillStyle = "#fff"; cc.fillRect(0, 0, W, H); }
+    const s = Math.min(W / base.width, H / base.height);
+    cc.drawImage(base, (W - base.width * s) / 2, (H - base.height * s) / 2, base.width * s, base.height * s);
+    try{
+      const b = await new Promise(res => c.toBlob(res, fmt.mime, fmt.q ? q : undefined));
+      est = b ? b.size + (fmt.custom === "ico" ? 22 : 0) : 0;
+    }catch(e){}
+  }
+  let html = `输出 ${W}×${H} · 预计约 <b>${fmtSize(est)}</b>`;
+  if(lim < Infinity)
+    html += est > lim
+      ? ` · <span style="color:var(--err)">超出 ${$("#expLimit").value}MB 限制，导出时将自动降质量/缩尺寸</span>`
+      : ` · 在 ${$("#expLimit").value}MB 限制内`;
+  $("#expInfo").innerHTML = html;
+}
+
+$("#btnExpDo").onclick = async () => {
+  const btn = $("#btnExpDo");
+  btn.innerHTML = '<span class="spin"></span> 导出中…';
+  try{
+    const fmt = curFmt();
+    if(!fmt){ toast("请选择格式", "err"); return; }
+    const [W, H] = parseSel();
+    if(!(W >= 16 && H >= 16 && W <= 20000 && H <= 20000)){ toast("尺寸无效", "err"); return; }
+    const lim = limitBytes();
+    let q = +$("#expQ").value / 100;
+    let kk = 1;
+    if(fmt.custom === "ico" && Math.max(W, H) > 256) kk = 256 / Math.max(W, H);
+    let blob = null, outC = null;
+    for(let round = 0; round < 24; round++){
+      const w = Math.max(16, Math.round(W * kk)), h = Math.max(16, Math.round(H * kk));
+      outC = document.createElement("canvas");
+      outC.width = w; outC.height = h;
+      const c = outC.getContext("2d");
+      c.imageSmoothingQuality = "high"; // 与 estimateSize 保持一致，保证预估=实际
+      if(fmt.mime !== "image/png" && fmt.custom !== "ico"){ c.fillStyle = "#fff"; c.fillRect(0, 0, w, h); }
+      const s = Math.min(w / base.width, h / base.height);
+      c.drawImage(base, (w - base.width * s) / 2, (h - base.height * s) / 2, base.width * s, base.height * s);
+      if(fmt.custom === "bmp") blob = encodeBMP(outC);
+      else {
+        const b = await toBlob(outC, fmt.mime, fmt.q ? q : undefined);
+        blob = b && fmt.custom === "ico" ? await encodeICO(b, w, h) : b;
+      }
+      if(!blob) break;
+      if(blob.size <= lim) break;
+      if(fmt.q && q > .4) q = Math.max(.4, q - .08);   // 有质量档先降质量
+      else kk *= .9;                                    // 再缩尺寸
+    }
+    if(!blob){ toast("导出失败", "err"); return; }
+    if(lim < Infinity && blob.size > lim){ toast(`无法压到 ${$("#expLimit").value}MB 内，请缩小尺寸或放宽限制`, "err"); return; }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    const baseName = (originalFile ? originalFile.name.replace(/\.[^.]+$/, "") : "image");
+    a.download = `${baseName}_edit_${outC.width}x${outC.height}.${fmt.ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    $("#exportMask").classList.remove("show");
+    toast(`已导出 ${outC.width}×${outC.height} ${fmt.label} · ${fmtSize(blob.size)}`, "ok");
+  } finally {
+    btn.textContent = "导出并下载";
+  }
+};
+
+/* ================= 初始 ================= */
+fitView();
+detectFormats().then(fillFmtSelect); // 后台探测浏览器支持的编码格式
+</script>
+</body>
+</html>
