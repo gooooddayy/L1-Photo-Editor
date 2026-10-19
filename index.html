@@ -315,6 +315,7 @@ let crop = null, cropRatio = 0, cropDrag = null;
 let brush = 48, mosaicStroke = null;
 let texts = [], selText = null, textDrag = null;
 let maskC = document.createElement("canvas"), mctx = maskC.getContext("2d");
+let maskBB = null; // 涂抹区增量 bbox 缓存：避免"开始移除"时全图扫描（大图 ImageData 达百 MB 级）
 let maskSize = 40, maskStroke = null;
 let aiBusy = false;
 
@@ -533,9 +534,11 @@ async function getModel(key){
 }
 function resetMask(){
   mctx.clearRect(0, 0, maskC.width, maskC.height);
+  maskBB = null;
 }
 function maskBBox(){
   if(!hasImg) return null;
+  if(maskBB) return { x: maskBB.x0, y: maskBB.y0, w: maskBB.x1 - maskBB.x0 + 1, h: maskBB.y1 - maskBB.y0 + 1 };
   const d = mctx.getImageData(0, 0, maskC.width, maskC.height).data;
   let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
   const W = maskC.width;
@@ -564,6 +567,16 @@ function maskStrokeTo(p){
       mctx.fill();
     }
   }
+  // 增量扩展 bbox（两端圆±半径覆盖全部插值圆），免去点"移除"时全图扫描
+  const r = maskSize / 2;
+  const b = { x0: Math.round(Math.min(p.x, (last ? last.x : p.x)) - r),
+              y0: Math.round(Math.min(p.y, (last ? last.y : p.y)) - r),
+              x1: Math.round(Math.max(p.x, (last ? last.x : p.x)) + r),
+              y1: Math.round(Math.max(p.y, (last ? last.y : p.y)) + r) };
+  maskBB = maskBB
+    ? { x0: Math.min(maskBB.x0, b.x0), y0: Math.min(maskBB.y0, b.y0),
+        x1: Math.max(maskBB.x1, b.x1), y1: Math.max(maskBB.y1, b.y1) }
+    : b;
   maskStroke.last = p;
   redraw();
 }
@@ -766,6 +779,7 @@ function undo(){
   base.width = snap.width; base.height = snap.height;
   bctx.drawImage(snap, 0, 0);
   maskC.width = base.width; maskC.height = base.height;
+  maskBB = null;
   crop = null; setMode(mode === "crop" ? "view" : mode);
   fitView(); redraw(); updateInfo();
   toast("已撤销", "ok");
@@ -865,6 +879,7 @@ function transformBase(fn){
   base.width = out.width; base.height = out.height;
   bctx.drawImage(out, 0, 0);
   maskC.width = base.width; maskC.height = base.height;
+  maskBB = null;
   crop = null;
   pushHistory(); fitView(); redraw();
 }
@@ -924,6 +939,7 @@ $("#btnCropApply").onclick = () => {
   base.width = sw; base.height = sh;
   bctx.drawImage(out, 0, 0);
   maskC.width = sw; maskC.height = sh;
+  maskBB = null;
   crop = null; setMode("view");
   pushHistory(); fitView(); redraw();
   toast(`已裁剪为 ${sw}×${sh}`, "ok");
