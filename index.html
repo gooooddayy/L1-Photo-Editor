@@ -477,8 +477,9 @@ function loadLocalModelScript(key){
   });
 }
 async function getModel(key){
+  const isFile = location.protocol === "file:"; // b64 脚本是 file:// 离线专用；在线直接同源 fetch onnx（体积更小且有进度条）
   // 1) 本地 base64 模型（models/ 目录与 HTML 同在）
-  if(!window[B64_KEY[key]] && !localTried[key]){
+  if(isFile && !window[B64_KEY[key]] && !localTried[key]){
     localTried[key] = true;
     await loadLocalModelScript(key);
   }
