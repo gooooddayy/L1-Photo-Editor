@@ -328,11 +328,13 @@ const AI = {
   MODELS: {
     u2netp: { label: "抠图模型 SILUETA (42MB)", urls: [
       "models/u2netp.onnx",
+      "https://cdn.jsdelivr.net/gh/gooooddayy/L1-Photo-Editor@main/models/u2netp.onnx",
       "https://hf-mirror.com/jellybox/silueta/resolve/main/silueta_320.onnx",
       "https://huggingface.co/jellybox/silueta/resolve/main/silueta_320.onnx",
     ]},
     migan: { label: "移除模型 MI-GAN (28MB)", urls: [
       "models/migan_pipeline_v2.onnx",
+      "https://cdn.jsdelivr.net/gh/gooooddayy/L1-Photo-Editor@main/models/migan_pipeline_v2.onnx",
       "https://hf-mirror.com/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx",
       "https://huggingface.co/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx",
     ]},
@@ -424,7 +426,8 @@ async function loadOrt(silent){
   if(!WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])))
     throw new Error("当前浏览器/WebView 过旧，缺少 WASM SIMD 支持，无法运行 AI 功能：请升级系统或更换较新的浏览器");
   if(!silent) aiProg("加载推理引擎…", 0, 1);
-  try{ await loadScript("ort/ort-wasm.b64.js"); }catch(e){} // 本地 wasm data URI（file:// 离线关键）
+  const isFile = location.protocol === "file:";
+  if(isFile){ try{ await loadScript("ort/ort-wasm.b64.js"); }catch(e){} } // 本地 wasm data URI（file:// 离线关键）
   let ok = false;
   for(const src of AI.ORT_SCRIPTS){ // 本地 ort/ 优先（file:// 也可用），CDN 兜底
     try{ await loadScript(src); if(window.ort){ ok = true; break; } }catch(e){}
@@ -432,30 +435,36 @@ async function loadOrt(silent){
   if(!ok) throw new Error("推理引擎加载失败：请将 ort 文件夹与本 HTML 放在同一目录后重新打开（双击本地文件，勿在聊天预览中测试）");
   ort.env.wasm.numThreads = 1;
   // wasm 二进制 → Blob URL，经 wasmPaths 对象映射注入（file:// 离线关键，data URI 会超 2MB 上限）
+  // 在线场景不走 27.7MB base64，让 ORT 从 jsDelivr CDN 拉取更小的原生 wasm（约 10MB）
   ortWasmLocal = false;
-  try{
-    if(!window.ORT_WASM_THREADED_B64 && !window.ORT_WASM_SIMD_B64){
-      await loadScript("ort/ort-wasm.b64.js");
-    }
-    const paths = {};
-    for(const [name, g] of [["ort-wasm-simd-threaded.wasm", "ORT_WASM_THREADED_B64"],
-                            ["ort-wasm-simd.wasm", "ORT_WASM_SIMD_B64"]]){
-      if(window[g]){
-        paths[name] = URL.createObjectURL(new Blob([b64ToBuf(window[g])], { type: "application/wasm" }));
-        window[g] = null;
+  if(location.protocol === "file:"){
+    try{
+      if(!window.ORT_WASM_THREADED_B64 && !window.ORT_WASM_SIMD_B64){
+        await loadScript("ort/ort-wasm.b64.js");
       }
-    }
-    if(Object.keys(paths).length){ ort.env.wasm.wasmPaths = paths; ortWasmLocal = true; }
-  }catch(e){}
+      const paths = {};
+      for(const [name, g] of [["ort-wasm-simd-threaded.wasm", "ORT_WASM_THREADED_B64"],
+                              ["ort-wasm-simd.wasm", "ORT_WASM_SIMD_B64"]]){
+        if(window[g]){
+          paths[name] = URL.createObjectURL(new Blob([b64ToBuf(window[g])], { type: "application/wasm" }));
+          window[g] = null;
+        }
+      }
+      if(Object.keys(paths).length){ ort.env.wasm.wasmPaths = paths; ortWasmLocal = true; }
+    }catch(e){}
+  } else {
+    ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/";
+  }
   ortReady = true;
 }
 let ortWasmLocal = false; // 本地 wasm 注入成功与否，用于失败时给出可操作的提示
 function aiErr(e){
+  const isFile = location.protocol === "file:";
   const inPreview = location.protocol === "http:" && /127\.0\.0\.1|localhost/.test(location.hostname);
   const tip = inPreview ? "（当前在聊天预览中打开，预览只有 HTML 单文件：请把 HTML 与 ort、models 文件夹放同一目录，双击本地文件打开测试）" : "";
-  if(!window.ort) return "推理引擎缺失（ort 文件夹）：请将 ort 文件夹与本 HTML 放同一目录，双击本地文件打开" + tip;
-  if(!ortWasmLocal) return "本地引擎缺失且网络不可用：请将 ort 文件夹与本 HTML 放同一目录后重新打开" + tip;
-  if(/no available backend|Aborted|wasm/i.test(e.message)) return "引擎运行时获取失败：请将 ort 文件夹与本 HTML 放同一目录（离线必需），或检查网络" + tip;
+  if(!window.ort) return "推理引擎加载失败：请检查网络后重试" + (isFile ? "，或确认 ort 文件夹与本 HTML 同目录" : "");
+  if(isFile && !ortWasmLocal) return "本地引擎缺失且网络不可用：请将 ort 文件夹与本 HTML 放同一目录后重新打开" + tip;
+  if(/no available backend|Aborted|wasm/i.test(e.message)) return "引擎运行时获取失败：请检查网络后重试，或将 ort 文件夹与 HTML 放同一目录使用离线模式" + tip;
   return e.message;
 }
 const B64_KEY = { u2netp: "MODEL_U2NETP_B64", migan: "MODEL_MIGAN_B64" };
