@@ -135,6 +135,15 @@ main{
 #aiFillBox{flex:1; height:6px; background:#e2ebe2; border-radius:3px; overflow:hidden}
 #aiFill{height:100%; width:0; background:var(--acc); border-radius:3px; transition:width .2s}
 #aiPct{min-width:34px; text-align:right; color:var(--sub)}
+#aiLog{
+  position:fixed; bottom:114px; left:50%; transform:translateX(-50%);
+  display:none; z-index:55; max-width:86vw;
+  background:var(--panel); backdrop-filter:var(--glass); -webkit-backdrop-filter:var(--glass);
+  border:1px solid var(--line); border-radius:8px;
+  padding:6px 10px; font-size:11px; color:var(--sub); line-height:1.7;
+  white-space:pre-wrap; word-break:break-all;
+  box-shadow:0 4px 16px rgba(0,0,0,.08);
+}
 
 .modal-mask{
   position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;
@@ -293,6 +302,7 @@ main{
 </div>
 
 <div id="aiBar"><span id="aiText">…</span><div id="aiFillBox"><div id="aiFill"></div></div><span id="aiPct"></span></div>
+<div id="aiLog"></div>
 <div id="toast"></div>
 
 <script>
@@ -408,14 +418,40 @@ async function fetchBuf(url, onProg){
   for(const c of chunks){ out.set(c, o); o += c.length; }
   return out.buffer;
 }
+let aiClockTimer = null, aiT0 = 0;
 function aiProg(text, g, t){
-  $("#aiBar").style.display = "flex";
+  const bar = $("#aiBar");
+  if(bar.style.display !== "flex") aiT0 = performance.now();
+  bar.style.display = "flex";
+  $("#aiText").dataset.base = text;
   $("#aiText").textContent = text;
   const p = t ? Math.min(100, g / t * 100) : 0;
   $("#aiFill").style.width = p + "%";
   $("#aiPct").textContent = t ? Math.round(p) + "%" : "";
+  if(!aiClockTimer) aiClockTimer = setInterval(aiTick, 1000);
 }
-function aiDone(){ $("#aiBar").style.display = "none"; }
+function aiTick(){ // 计时持续走动=推理还活着；冻结=主线程被阻塞或 worker 已死
+  if($("#aiBar").style.display !== "flex") return;
+  const s = Math.round((performance.now() - aiT0) / 1000);
+  $("#aiText").textContent = $("#aiText").dataset.base + (s >= 5 ? "（已 " + s + "s）" : "");
+}
+function aiDone(){ $("#aiBar").style.display = "none"; clearInterval(aiClockTimer); aiClockTimer = null; }
+/* 屏幕端调试日志（手机抓不到控制台，事件时间线直接显示供截图回报） */
+const AI_LOG = [];
+let aiLogTimer = null;
+function aiNote(msg, force){
+  const s = aiT0 ? Math.round((performance.now() - aiT0) / 1000) : 0;
+  AI_LOG.push("[" + s + "s] " + msg);
+  if(AI_LOG.length > 8) AI_LOG.shift();
+  if(force || aiBusy || $("#aiBar").style.display === "flex"){
+    $("#aiLog").textContent = AI_LOG.join("\n");
+    $("#aiLog").style.display = "block";
+    clearTimeout(aiLogTimer);
+    aiLogTimer = setTimeout(() => $("#aiLog").style.display = "none", 90000);
+  }
+}
+addEventListener("error", e => aiNote("页面错误: " + (e.message || e.type)));
+addEventListener("unhandledrejection", e => aiNote("未处理异常: " + ((e.reason && e.reason.message) || e.reason)));
 let ortReady = false;
 function loadScript(src){
   return new Promise((res, rej) => {
@@ -528,7 +564,7 @@ async function getModel(key){
       }
       await idbSet(key + "_v2", buf).catch(() => {});
       return buf;
-    }catch(e){ lastErr = e; }
+    }catch(e){ lastErr = e; aiNote("下载失败: " + (Array.isArray(url) ? url[url.length-1] : url) + " " + (e.message || e)); }
   }
   throw lastErr || new Error("模型下载失败");
 }
@@ -586,9 +622,14 @@ async function runMatting(){
   aiBusy = true;
   try{
     await loadOrt();
+    aiNote("推理引擎就绪");
     const buf = await getModel("u2netp");
+    aiNote("模型就绪 " + (buf.byteLength / 1048576).toFixed(1) + "MB（应≈40MB，明显偏小=缓存损坏）");
     aiProg("初始化会话…", 0, 1);
+    try{ ort.env.wasm.proxy = location.protocol !== "file:"; }catch(e){} // 在线走 worker：主线程不冻结、计时可见
+    const t0 = performance.now();
     const sess = await ort.InferenceSession.create(buf, { executionProviders: ["wasm"] });
+    aiNote("会话创建 " + ((performance.now() - t0) / 1000).toFixed(1) + "s");
     aiProg("正在抠图…（CPU 数秒~数十秒，视设备而定）", 0, 1);
     await new Promise(r => setTimeout(r, 60));
     const S = 320;
@@ -603,7 +644,12 @@ async function runMatting(){
       for(let c = 0; c < 3; c++)
         inp[c * S * S + i] = (d[i * 4 + c] / 255 - mean[c]) / std[c];
     const feeds = { [sess.inputNames[0]]: new ort.Tensor("float32", inp, [1, 3, S, S]) };
-    const out = await sess.run(feeds);
+    aiNote("推理开始（手机单线程可能需 1-3 分钟）");
+    let runSettled = false;
+    const runP = sess.run(feeds).then(r => (runSettled = true, r));
+    setTimeout(() => { if(!runSettled) aiNote("60s 仍在推理；超 3 分钟未完成请截图此日志回报"); }, 60000);
+    const out = await runP;
+    aiNote("推理完成");
     const pred = out[sess.outputNames[0]].data;
     let ma = -1e9, mi = 1e9;
     for(let i = 0; i < S * S; i++){ if(pred[i] > ma) ma = pred[i]; if(pred[i] < mi) mi = pred[i]; }
@@ -628,6 +674,7 @@ async function runMatting(){
     pushHistory(); redraw();
     toast("抠图完成，导出 PNG 可保留透明背景", "ok");
   }catch(e){
+    aiNote("抠图失败: " + (e.message || e), true);
     toast("抠图失败：" + aiErr(e), "err");
   }finally{    aiBusy = false; aiDone();
   }
@@ -640,7 +687,9 @@ async function runErase(){
   aiBusy = true;
   try{
     await loadOrt();
+    try{ ort.env.wasm.proxy = false; }catch(e){} // 移除保持原路径不动
     const buf = await getModel("migan");
+    aiNote("模型就绪 " + (buf.byteLength / 1048576).toFixed(1) + "MB");
     aiProg("初始化会话…", 0, 1);
     const sess = await ort.InferenceSession.create(buf, { executionProviders: ["wasm"] });
     const pad = Math.max(bb.w, bb.h) * 0.35 + 24;
@@ -693,6 +742,7 @@ async function runErase(){
     pushHistory(); redraw();
     toast("移除完成，不满意可撤销后多涂一点再试", "ok");
   }catch(e){
+    aiNote("移除失败: " + (e.message || e), true);
     const msg = (!window.ort || !ortWasmLocal || /no available backend|aborted/i.test(e.message)) ? aiErr(e)
       : /fetch|network/i.test(e.message) ? "模型获取失败：请将 models 文件夹与本 HTML 放同一目录后重新打开，或检查网络后重试"
       : e.message;
