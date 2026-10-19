@@ -576,7 +576,7 @@ async function runMatting(){
     const buf = await getModel("u2netp");
     aiProg("初始化会话…", 0, 1);
     const sess = await ort.InferenceSession.create(buf, { executionProviders: ["wasm"] });
-    aiProg("正在抠图…（CPU 约几秒）", 0, 1);
+    aiProg("正在抠图…（CPU 数秒~数十秒，视设备而定）", 0, 1);
     await new Promise(r => setTimeout(r, 60));
     const S = 320;
     const tmp = document.createElement("canvas");
@@ -605,14 +605,12 @@ async function runMatting(){
       sd.data[i*4+3] = v;
     }
     sc.putImageData(sd, 0, 0);
-    const big = document.createElement("canvas");
-    big.width = base.width; big.height = base.height;
-    big.getContext("2d").drawImage(mSmall, 0, 0, big.width, big.height);
-    const mk = big.getContext("2d").getImageData(0, 0, big.width, big.height);
-    const img = bctx.getImageData(0, 0, base.width, base.height);
-    for(let i = 0; i < img.data.length; i += 4)
-      img.data[i + 3] = Math.round(img.data[i + 3] * mk.data[i + 3] / 255);
-    bctx.putImageData(img, 0, 0);
+    // alpha 乘法用 destination-in 合成完成（base 不透明时 alpha_out = mask_alpha），
+    // 避免全尺寸 getImageData——手机大图（12-48MP）原本会瞬间吃掉 100-400MB 内存而卡死
+    bctx.save();
+    bctx.globalCompositeOperation = "destination-in";
+    bctx.drawImage(mSmall, 0, 0, base.width, base.height);
+    bctx.restore();
     crop = null;
     pushHistory(); redraw();
     toast("抠图完成，导出 PNG 可保留透明背景", "ok");
