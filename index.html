@@ -328,11 +328,16 @@ const AI = {
   MODELS: {
     u2netp: { label: "抠图模型 SILUETA (42MB)", urls: [
       "models/u2netp.onnx",
+      ["https://cdn.jsdelivr.net/gh/gooooddayy/L1-Photo-Editor@main/models/u2netp.onnx.p0",
+       "https://cdn.jsdelivr.net/gh/gooooddayy/L1-Photo-Editor@main/models/u2netp.onnx.p1",
+       "https://cdn.jsdelivr.net/gh/gooooddayy/L1-Photo-Editor@main/models/u2netp.onnx.p2"],
       "https://hf-mirror.com/jellybox/silueta/resolve/main/silueta_320.onnx",
       "https://huggingface.co/jellybox/silueta/resolve/main/silueta_320.onnx",
     ]},
     migan: { label: "移除模型 MI-GAN (28MB)", urls: [
       "models/migan_pipeline_v2.onnx",
+      ["https://cdn.jsdelivr.net/gh/gooooddayy/L1-Photo-Editor@main/models/migan_pipeline_v2.onnx.p0",
+       "https://cdn.jsdelivr.net/gh/gooooddayy/L1-Photo-Editor@main/models/migan_pipeline_v2.onnx.p1"],
       "https://hf-mirror.com/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx",
       "https://huggingface.co/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx",
     ]},
@@ -501,11 +506,25 @@ async function getModel(key){
   // 2) IndexedDB 缓存（此前联网下载过）
   const cached = await idbGet(key + "_v2").catch(() => null);
   if(cached) return cached;
-  // 3) 同目录 onnx（http 部署）→ 远程源
+  // 3) 同目录 onnx（http 部署）→ jsDelivr 分片 CDN → 远程源；数组项 = 分片组，依次下载后拼接
   let lastErr;
   for(const url of AI.MODELS[key].urls){
     try{
-      const buf = await fetchBuf(url, (g, t) => aiProg("首次下载 " + AI.MODELS[key].label, g, t));
+      let buf;
+      if(Array.isArray(url)){
+        const parts = []; let done = 0;
+        for(const u of url){
+          const b = await fetchBuf(u, (g, t) => aiProg("首次下载 " + AI.MODELS[key].label, done + g, t));
+          done += b.byteLength;
+          parts.push(new Uint8Array(b));
+        }
+        const total = parts.reduce((s, p) => s + p.length, 0);
+        const out = new Uint8Array(total); let o = 0;
+        for(const p of parts){ out.set(p, o); o += p.length; }
+        buf = out.buffer;
+      } else {
+        buf = await fetchBuf(url, (g, t) => aiProg("首次下载 " + AI.MODELS[key].label, g, t));
+      }
       await idbSet(key + "_v2", buf).catch(() => {});
       return buf;
     }catch(e){ lastErr = e; }
