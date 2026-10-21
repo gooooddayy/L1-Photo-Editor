@@ -1,6 +1,6 @@
 # L1 图片编辑器
 
-> 🖼️ **免费在线图片编辑器 - AI抠图 智能笔刷** —— AI抠图 · AI移除去水印 · 旋转 · 镜像 · 裁剪 · 马赛克 · 文字 · 调整尺寸大小 · jpg/jpeg/png/webp格式转换。**隐私优先，图片仅在本地处理，不会保存在服务器**。
+> 🖼️ ** 在线本地处理图片编辑器** —— AI抠图 · AI移除去水印 · 旋转 · 镜像 · 裁剪 · 马赛克 · 文字 · 调整尺寸大小 · jpg/jpeg/png/webp格式转换。**隐私优先，图片仅在本地处理，不会保存在服务器**。
 
 **English**: A free online photo editor with AI background removal (local AI matting), AI watermark & object removal (smart brush inpainting), rotate/mirror/crop/mosaic/text/resize and jpg/jpeg/png/webp conversion. Privacy-first: images are processed locally in your browser and never stored on any server.
 
