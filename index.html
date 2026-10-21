@@ -679,7 +679,7 @@ async function runErase(){
   if(!hasImg){ toast("请先导入图片"); return; }
   if(aiBusy) return;
   const bb = maskBBox();
-  if(!bb){ toast("涂抹要移除的区域，仅供处理自有版权图片"); return; }
+  if(!bb){ toast("请先涂抹要移除的区域"); return; }
   aiBusy = true;
   try{
     await loadOrt();
