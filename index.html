@@ -683,7 +683,10 @@ async function runErase(){
   aiBusy = true;
   try{
     await loadOrt();
-    try{ ort.env.wasm.proxy = false; }catch(e){} // 移除保持原路径不动
+    // proxy 策略必须与抠图完全一致：wasm 引擎初始化是单例（只跑一次），若抠图先在 worker 里初始化、
+    // 移除再切回主线程，主线程 wasm 永远未初始化 → getInstance() 抛 "WebAssembly is not initialized yet."
+    // 统一走同一通道后该竞态消失；手机/file:// 两侧本来都是 false，行为零变化
+    try{ ort.env.wasm.proxy = !IS_TOUCH && location.protocol !== "file:"; }catch(e){}
     const buf = await getModel("migan");
     aiProg("初始化会话…", 0, 1);
     const sess = await ort.InferenceSession.create(buf, { executionProviders: ["wasm"] });
@@ -1498,7 +1501,9 @@ $("#btnExpDo").onclick = async () => {
       blob = estCache.blob; // 估算刚编码过同参数 → 直接复用，导出瞬时完成
       outC = { width: Math.max(16, Math.round(W * kk)), height: Math.max(16, Math.round(H * kk)) };
     }
-    for(let round = 0; round < 24 && !blob; round++){
+    // 缓存命中（仅 lim=Infinity）时 blob 已就绪，整段循环跳过；⚠️ 循环条件不能加 &&!blob——
+    // blob 每轮必赋值，加了会让 MB 限制的降质量/缩尺寸循环跑完第 1 轮就退出（v14.3 回归教训）
+    if(!blob) for(let round = 0; round < 24; round++){
       const w = Math.max(16, Math.round(W * kk)), h = Math.max(16, Math.round(H * kk));
       outC = document.createElement("canvas");
       outC.width = w; outC.height = h;
