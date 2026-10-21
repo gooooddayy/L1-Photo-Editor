@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L1 图片编辑器 - 隐私政策</title>
+<style>
+body{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;max-width:720px;margin:0 auto;padding:32px 20px;color:#1d2620;line-height:1.8;background:#f6f9f4}
+h1{font-size:22px}h2{font-size:17px;margin-top:28px;border-left:3px solid #1fa75f;padding-left:10px}
+.box{background:#fff;border:1px solid rgba(28,58,38,.12);border-radius:10px;padding:16px 20px;margin:14px 0}
+em{color:#1fa75f;font-style:normal;font-weight:600}
+.small{color:#68786c;font-size:13px}
+</style>
+</head>
+<body>
+<h1>L1 图片编辑器 — 隐私政策</h1>
+<p class="small">生效日期：2026年10月21日 · 适用范围：L1 图片编辑器网页版（浏览器）及安卓客户端（APK）</p>
+
+<div class="box"><em>摘要：本应用不收集、不存储、不上传、不分享任何用户数据。所有图片处理均在您的设备本地完成。</em></div>
+
+<h2>一、我们收集哪些信息</h2>
+<p><strong>无。</strong>本应用不要求注册登录，不收集任何个人信息（包括但不限于姓名、电话、邮箱、位置、设备标识符），不嵌入任何统计、广告或第三方追踪组件，不产生任何网络请求用于数据回传。</p>
+
+<h2>二、您的图片如何处理</h2>
+<ul>
+<li><strong>网页版</strong>：您导入的图片仅存在于浏览器内存中，AI 抠图与 AI 移除功能通过运行在您设备上的本地推理引擎（WebAssembly）完成，处理结果仅保存在您的设备。</li>
+<li><strong>安卓版</strong>：AI 推理通过设备本地的 onnxruntime 完成，模型内置在安装包内，应用<strong>未申请网络权限</strong>，技术上无法联网传输任何数据。</li>
+<li>关闭或退出应用后，图片数据即从内存中释放；本应用不在服务器端保存任何副本。</li>
+</ul>
+
+<h2>三、权限使用说明（安卓版）</h2>
+<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%;background:#fff">
+<tr><th>权限</th><th>用途</th><th>是否必需</th></tr>
+<tr><td>读取存储（Android 9 及以下）</td><td>打开您选择的本地图片</td><td>仅导入图片时使用</td></tr>
+<tr><td>写入存储（Android 9 及以下）</td><td>保存您导出的编辑结果</td><td>仅导出图片时使用</td></tr>
+<tr><td>网络权限</td><td><strong>未申请</strong>——本应用完全离线运行</td><td>无</td></tr>
+</table>
+
+<h2>四、儿童隐私</h2>
+<p>本应用不面向特定年龄段收集任何信息（亦不收集成人信息），对全部用户一视同仁地不收集任何数据。</p>
+
+<h2>五、第三方组件</h2>
+<p>本应用使用的开源组件（onnxruntime、SILUETA/MI-GAN 模型）均在本地运行，不与第三方服务器通信。项目按 MIT 许可开源，组件来源可见仓库说明。</p>
+
+<h2>六、政策更新</h2>
+<p>若未来应用功能发生变化涉及隐私条款，我们将在本页面更新并修改生效日期。</p>
+
+<h2>七、联系我们</h2>
+<p>如对本政策有任何疑问，请通过 GitHub 仓库 Issues 联系：<a href="https://github.com/gooooddayy/L1-Photo-Editor/issues">github.com/gooooddayy/L1-Photo-Editor/issues</a></p>
+
+<p class="small">本应用仅供处理您拥有合法权利的图片；请勿将本应用用于侵犯他人版权或合法权益的用途。</p>
+</body>
+</html>
