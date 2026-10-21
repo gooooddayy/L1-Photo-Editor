@@ -1,8 +1,8 @@
 # L1 图片编辑器
 
-> 🖼️ **免费在线图片编辑器** —— AI 一键抠图 · AI 消除水印与多余物体 · 比例裁剪 · 多格式导出。**纯本地处理，图片永不上传，无水印，无需注册**。
+> 🖼️ **免费在线图片编辑器 - AI抠图 智能笔刷** —— AI抠图 · AI移除去水印 · 旋转 · 镜像 · 裁剪 · 马赛克 · 文字 · 调整尺寸大小 · jpg/jpeg/png/webp格式转换。**隐私优先，图片仅在本地处理，不会保存在服务器**。
 
-**English**: A free, privacy-first online image editor with AI background removal, AI object/watermark removal (inpainting), ratio cropping and multi-format export. All processing runs 100% locally in your browser — no upload, no watermark, no sign-up, works offline.
+**English**: A free online photo editor with AI background removal (local AI matting), AI watermark & object removal (smart brush inpainting), rotate/mirror/crop/mosaic/text/resize and jpg/jpeg/png/webp conversion. Privacy-first: images are processed locally in your browser and never stored on any server.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Privacy](https://img.shields.io/badge/Privacy-本地处理_永不上传-blue)](#-隐私与合规)
@@ -20,14 +20,15 @@
 
 | 模块 | 说明 |
 |---|---|
-| 🖌️ **AI 一键抠图** | 自动识别画面主体（人像 / 宠物 / 物品 / 静物），一键去除背景，导出 PNG 保留透明通道 |
-| 🧹 **AI 消除 / 去水印** | 涂抹想要移除的水印、文字、路人、杂物，AI 自动填补背景（图像修复） |
-| ✂️ **比例裁剪** | 原图 / 自由 / 1:1 / 16:9 / 9:16 / 4:3 / 3:4 / 16:10 / 10:16 / 3:2 / 2:3，等比钳位算法（13 万组合测例 0 失败） |
-| 🔄 旋转镜像 | 逆时针 90° 循环旋转、水平镜像 |
-| 🧩 马赛克 | 笔刷涂抹，快速拖动自动连线 |
-| 🔤 文字工具 | 自定义颜色 / 大小 / 加粗，可拖动摆放后合并到图片 |
+| 🖌️ **AI抠图** | 本地AI自动去除图片背景，智能抠图（人像 / 宠物 / 物品 / 静物），导出 PNG 保留透明通道 |
+| 🧹 **AI移除（去水印）** | 本地AI去水印，智能笔刷涂抹照片里不想要的物件/水印/文字/路人，AI 自动填补背景 |
+| ✂️ **裁剪** | 原图 / 自由 / 1:1 / 16:9 / 9:16 / 4:3 / 3:4 / 16:10 / 10:16 / 3:2 / 2:3，等比钳位算法（13 万组合测例 0 失败） |
+| 🔄 **旋转 / 镜像** | 逆时针 90° 循环旋转、水平镜像 |
+| 🧩 **马赛克** | 笔刷涂抹，快速拖动自动连线 |
+| 🔤 **文字** | 自定义颜色 / 大小 / 加粗，可拖动摆放后合并到图片 |
+| 📐 **改尺寸（调整大小）** | 调整图片尺寸，按比例缩放，37 个分辨率预设导出 + 自定义宽高 + 锁定比例 + 限制体积自动降质 |
 | ↩️ 撤销 | 快照式历史，支持连续撤销 |
-| 📤 **导出** | JPG / PNG / WEBP / BMP / ICO（+AVIF 自动探测）；37 个预设尺寸 + 自定义宽高 + 锁定比例 + 限制体积（≤XX MB 自动降质），导出前实时预估文件大小 |
+| 🔄 **格式转换** | jpg / jpeg / png / webp（另支持 BMP / ICO / AVIF 自动探测），导出前实时预估文件大小 |
 | 📱 响应式 | 桌面 / 手机 / 平板 / 异形屏（刘海屏 safe-area）自适应，触屏优化；低内存设备自动切换轻量模型 |
 
 ## 🆚 与同类工具的差别
@@ -94,3 +95,7 @@
 ## 📄 License
 
 [MIT](LICENSE) · 模型版权遵循各自来源仓库许可
+
+---
+
+**关键词**：在线图片编辑器 · 免费在线修图 · AI抠图 · 智能抠图 · 一键去背景 · AI移除 · 去水印 · 智能笔刷 · 照片编辑 · 图片去水印 · 擦除物体 · 裁剪 · 旋转 · 镜像 · 马赛克 · 加文字 · 调整图片尺寸大小 · 改分辨率 · jpg/jpeg/png/webp格式转换 · 本地处理 · 隐私优先 · 不上传服务器 · 离线修图 · free online photo editor · background remover · watermark remover · smart brush · resize image · convert jpg png webp
