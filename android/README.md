@@ -5,7 +5,7 @@
 ## 环境
 
 - JDK 11、Android Gradle Plugin 7.2.2 / Gradle 7.3.3、Android SDK（compileSdk 33, build-tools 33.0.2）
-- `minSdk 24`（Android 7.0）`targetSdk 33`，仅 `arm64-v8a`
+- `minSdk 24`（Android 7.0）`targetSdk 34`，仅 `arm64-v8a`
 
 ## 模型资产（仓库不含，需自行放入）
 
@@ -25,8 +25,11 @@ gradle assembleDebug
 # 正式包（构建 → 对齐 → 签名）
 gradle assembleRelease
 zipalign -p 4 app/build/outputs/apk/release/app-release-unsigned.apk out.apk
-apksigner sign --min-sdk-version 24 --ks <你的keystore> --ks-key-alias <alias> out.apk
+apksigner sign --min-sdk-version 24 --ks l1box-TVBoxOSC.jks --ks-key-alias tvboxosc out.apk
+apksigner verify --print-certs out.apk   # 证书指纹须为 4B:94:21:DE:…:E0:51
 ```
+
+签名密钥不从本仓库获取（私密仓库单独保管），口令另行保存；**换机重建必须用同一把密钥**，否则无法覆盖升级已安装的用户。
 
 ## 源码结构
 

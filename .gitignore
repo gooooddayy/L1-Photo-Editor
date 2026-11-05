@@ -1,0 +1,19 @@
+# 签名密钥：绝不入库（集中保管在私密仓库）
+*.jks
+*.keystore
+keystore.properties
+
+# 安卓构建产物与本地配置
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+
+# 模型本体：体积大，按 android/README.md 自行放入
+android/app/src/main/assets/*.onnx
+
+# 构建日志与临时校验目录
+*.log
+_chk/
+_verify/

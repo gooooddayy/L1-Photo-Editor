@@ -534,7 +534,7 @@ public class MainActivity extends Activity implements EditorView.Listener {
         }));
         panelBox.addView(wrap);
         panelBox.setVisibility(View.VISIBLE);
-        Util.toast(this, "在图上涂抹要移除的区域（绿色高亮处）");
+        Util.toast(this, "涂抹要移除的区域，仅供处理自有版权图片");
     }
 
     private void enterRemove() {
@@ -544,7 +544,7 @@ public class MainActivity extends Activity implements EditorView.Listener {
 
     private void runErase() {
         if (noImage()) return;
-        if (view.maskBB == null) { Util.toast(this, "请先用笔刷涂抹要移除的区域"); return; }
+        if (view.maskBB == null) { Util.toast(this, "请先涂抹要移除的区域"); return; }
         final float[] bb = view.maskBB.clone();
         final Bitmap mask = view.maskBitmap();
         showProgress("移除中…", -1);
