@@ -98,4 +98,6 @@
 
 ---
 
+[![Featured on 新趣集](https://xinquji.com/badge)](https://xinquji.com)
+
 **关键词**：在线图片编辑器 · 免费在线修图 · AI抠图 · 智能抠图 · 一键去背景 · AI移除 · 去水印 · 智能笔刷 · 照片编辑 · 图片去水印 · 擦除物体 · 裁剪 · 旋转 · 镜像 · 马赛克 · 加文字 · 调整图片尺寸大小 · 改分辨率 · jpg/jpeg/png/webp格式转换 · 本地处理 · 隐私优先 · 不上传服务器 · 离线修图 · free online photo editor · background remover · watermark remover · smart brush · resize image · convert jpg png webp
